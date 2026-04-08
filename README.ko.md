@@ -26,6 +26,7 @@
 - `agents/recon-reader.md`, `agents/recon-reader.ko.md`는 관찰 결과 해석 원칙을 설명합니다
 - `agents/auth-analyzer.md`, `agents/auth-analyzer.ko.md`는 비교 기반 인가 검토 절차를 정의합니다
 - `agents/evidence-writer.md`, `agents/evidence-writer.ko.md`는 재현 가능한 finding 작성 기준을 설명합니다
+- `agents/mobile-app-analyzer.md`, `agents/mobile-app-analyzer.ko.md`는 비파괴 모바일 산출물 분석과 백엔드 연동 단서 검토 기준을 제공합니다
 
 ### MCP 도구
 
@@ -35,6 +36,14 @@
 - `mcp/schema_extract.py`는 저장된 응답에서 필드, 경로 패턴, 인증 단서를 추출합니다
 - `mcp/artifact_writer.py`는 허용된 경로 내부에만 finding 또는 evidence를 기록합니다
 - `mcp/common.py`는 정책 로딩, 마스킹, 해시 계산, JSON 저장 공통 기능을 제공합니다
+
+### LLM 오케스트레이션 모델
+
+- LLM은 후보 경로와 다음 액션을 제안만 합니다
+- 실제 범위 판정은 `mcp/scope_guard.py`가 결정적으로 수행합니다
+- `tools/orchestrate_candidates.py`로 후보 경로를 허용/차단으로 분류합니다
+- `forbidden_path_patterns`에 걸리는 경로는 `approved_path_exceptions`에 명시된 경우에만 예외 허용됩니다
+- 실제 실행은 `mcp/http_probe.py`로 한 번에 한 요청씩만 진행합니다
 
 ### 정책 시스템
 
@@ -124,6 +133,23 @@ python mcp/artifact_writer.py --relative-path findings/example.md --mode text --
 4. 여러 관찰이 있으면 `response_diff`로 비교합니다
 5. 필요 시 `schema_extract`로 구조 힌트를 보강합니다
 6. 증거 저장이 끝난 뒤에만 `artifact_writer`로 finding을 작성합니다
+
+## 승인 기반 자동화
+
+LLM으로 절차를 자동화하더라도, 실행 가능 여부를 모델이 직접 결정하면 안 됩니다. 안전한 흐름은 다음과 같습니다.
+
+1. LLM이 후보 경로를 제안합니다
+2. `tools/orchestrate_candidates.py`로 정책 기준 허용/차단 여부를 분류합니다
+3. 금지 패턴 경로는 `policies/scope.yaml`의 `approved_path_exceptions`에 명시적으로 승인된 경우에만 예외 허용합니다
+4. 허용된 경로만 `mcp/http_probe.py`로 한 번에 한 요청씩 실행합니다
+
+예시:
+
+```bash
+python tools/orchestrate_candidates.py \
+  --base-url https://loaflex.com \
+  --paths '["/", "/robots.txt", "/admin", "/debug"]'
+```
 
 ## 제한사항
 

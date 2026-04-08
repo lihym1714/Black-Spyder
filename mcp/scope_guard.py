@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from mcp.common import is_host_allowed, is_method_allowed, is_path_forbidden, load_scope_policy
+from mcp.common import get_approved_path_exception, is_host_allowed, is_method_allowed, is_path_forbidden, load_scope_policy
 
 
 app = typer.Typer(add_completion=False, help="Validate whether a request is inside the local scope policy.")
@@ -31,12 +31,13 @@ def evaluate_scope(url: str, method: str, policy: dict[str, Any]) -> dict[str, A
     parsed = urlparse(url)
     normalized_method = method.upper()
     reasons: list[str] = []
+    approved_exception = get_approved_path_exception(url, policy)
 
     if parsed.scheme not in policy.get("allowed_schemes", []):
         reasons.append(f"Scheme '{parsed.scheme}' is not allowed.")
     if not is_host_allowed(url, policy):
         reasons.append(f"Host '{parsed.hostname or ''}' is not in allowed_hosts.")
-    if is_path_forbidden(url, policy):
+    if is_path_forbidden(url, policy) and approved_exception is None:
         reasons.append(f"Path '{parsed.path or '/'}' matches a forbidden pattern.")
 
     approval_required = normalized_method in {value.upper() for value in policy.get("approval_required_methods", [])}
@@ -51,9 +52,11 @@ def evaluate_scope(url: str, method: str, policy: dict[str, Any]) -> dict[str, A
     return {
         "allowed": len(reasons) == 0,
         "reasons": reasons,
+        "approved_exception_used": approved_exception is not None,
         "policy_summary": {
             "allowed_methods": policy.get("allowed_methods", []),
             "allowed_hosts": policy.get("allowed_hosts", []),
+            "forbidden_path_patterns": policy.get("forbidden_path_patterns", []),
         },
     }
 

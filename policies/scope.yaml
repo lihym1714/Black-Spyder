@@ -1,8 +1,6 @@
 # Explicitly allowed hosts for authorized testing only.
 allowed_hosts:
-  - example.local
-  - localhost
-  - 127.0.0.1
+  - loaflex.com
 
 # Restrict transport to standard local HTTP/S schemes.
 allowed_schemes:
@@ -32,7 +30,7 @@ request_timeout_seconds: 10
 user_agent: sec-agent/0.1 (+authorized-security-assessment)
 
 # Keep production-like targets out of bounds by default.
-production_allowed: false
+production_allowed: true
 
 # Sensitive areas that should never be requested automatically.
 forbidden_path_patterns:
@@ -40,6 +38,8 @@ forbidden_path_patterns:
   - "*/internal*"
   - "*/debug*"
   - "*/actuator*"
+
+approved_path_exceptions: []
 
 # Redirects are off by default to avoid accidental scope drift.
 allow_redirects: false

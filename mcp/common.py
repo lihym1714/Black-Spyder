@@ -86,6 +86,23 @@ def is_path_forbidden(url: str, policy: dict[str, Any]) -> bool:
     return any(fnmatch(path, pattern) for pattern in patterns)
 
 
+def get_approved_path_exception(url: str, policy: dict[str, Any]) -> dict[str, Any] | None:
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path or "/"
+
+    for entry in policy.get("approved_path_exceptions", []):
+        if not isinstance(entry, dict):
+            continue
+        entry_host = str(entry.get("host", "")).lower()
+        if entry_host != hostname:
+            continue
+        for approved_path in entry.get("paths", []):
+            if isinstance(approved_path, str) and path == approved_path:
+                return entry
+    return None
+
+
 def build_request_id() -> str:
     return uuid.uuid4().hex
 

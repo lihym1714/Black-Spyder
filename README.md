@@ -27,6 +27,7 @@
 - `agents/recon-reader.md` and `agents/recon-reader.ko.md` describe evidence-based observation review
 - `agents/auth-analyzer.md` and `agents/auth-analyzer.ko.md` cover comparison-based authorization review
 - `agents/evidence-writer.md` and `agents/evidence-writer.ko.md` explain reproducible finding generation
+- `agents/mobile-app-analyzer.md` and `agents/mobile-app-analyzer.ko.md` cover non-destructive mobile artifact analysis and backend-integration clue review
 
 ### MCP tools
 
@@ -36,6 +37,14 @@
 - `mcp/schema_extract.py` extracts candidate fields, endpoint patterns, and auth hints from stored observations
 - `mcp/artifact_writer.py` writes findings or evidence only inside approved project paths
 - `mcp/common.py` holds shared policy, masking, hashing, and JSON helpers
+
+### LLM orchestration model
+
+- let the LLM propose candidate paths and next actions
+- keep scope enforcement deterministic in `mcp/scope_guard.py`
+- use `tools/orchestrate_candidates.py` to classify proposed paths into allowed vs blocked
+- if a path matches `forbidden_path_patterns`, only an explicit `approved_path_exceptions` entry can override it
+- keep execution one request at a time through `mcp/http_probe.py`
 
 ### policy system
 
@@ -125,6 +134,23 @@ Update `policies/scope.yaml` before any real assessment.
 4. compare artifacts with `response_diff` when multiple observations exist
 5. extract structure hints with `schema_extract` if needed
 6. write findings with `artifact_writer` only after evidence is stored
+
+## Approval-gated automation
+
+For LLM-driven planning, do not let the model directly decide execution eligibility. Instead:
+
+1. have the LLM propose candidate paths
+2. run `tools/orchestrate_candidates.py` to classify them against policy
+3. add only explicitly approved forbidden-path exceptions to `policies/scope.yaml`
+4. run `mcp/http_probe.py` one request at a time for the allowed set
+
+Example:
+
+```bash
+python tools/orchestrate_candidates.py \
+  --base-url https://loaflex.com \
+  --paths '["/", "/robots.txt", "/admin", "/debug"]'
+```
 
 ## Limitations
 
