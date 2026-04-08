@@ -47,7 +47,7 @@ def perform_probe(url: str, method: str = "GET", headers: dict[str, str] | None 
         }
 
     request_id = build_request_id()
-    request_headers = {"User-Agent": policy.get("user_agent", "sec-agent/0.1")}
+    request_headers = {"User-Agent": policy.get("user_agent", "Black-Spyder/0.1")}
     if headers:
         request_headers.update(headers)
 

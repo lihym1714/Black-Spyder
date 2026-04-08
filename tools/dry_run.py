@@ -37,7 +37,7 @@ def main() -> None:
     policy = load_scope_policy()
     ensure_state_file()
 
-    table = Table(title="sec-agent dry run")
+    table = Table(title="Black-Spyder dry run")
     table.add_column("Setting")
     table.add_column("Value")
     table.add_row("Allowed hosts", ", ".join(policy["allowed_hosts"]))

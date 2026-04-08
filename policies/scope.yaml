@@ -27,7 +27,7 @@ max_requests_per_minute: 20
 request_timeout_seconds: 10
 
 # Predictable, identifiable user agent for local testing.
-user_agent: sec-agent/0.1 (+authorized-security-assessment)
+user_agent: Black-Spyder/0.1 (+authorized-security-assessment)
 
 # Keep production-like targets out of bounds by default.
 production_allowed: true

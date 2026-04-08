@@ -202,13 +202,13 @@ def bootstrap(attempt_install_missing: bool = False) -> None:
     print(f"- Checked commands: {', '.join(checked)}")
     print(f"- Virtual environment: {VENV_DIR}")
     print(f"- Requirements installed from: {REQUIREMENTS_FILE}")
-    print("- Console entry point installed: sec-agent-bootstrap")
+    print("- Console entry point installed: black-spyder-bootstrap")
     print(f"- Policy file validated: {POLICY_FILE}")
     print("- Workspace directories ensured: evidence/raw, evidence/normalized, findings, state")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bootstrap the local sec-agent workspace.")
+    parser = argparse.ArgumentParser(description="Bootstrap the local Black-Spyder workspace.")
     parser.add_argument(
         "--attempt-install",
         action="store_true",

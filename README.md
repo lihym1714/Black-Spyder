@@ -1,13 +1,13 @@
-# sec-agent
+# Black-Spyder
 
 [English](README.md) | [한국어](README.ko.md)
 
-`sec-agent` is a controlled, evidence-driven security assessment workspace for explicitly authorized targets only.  
-`sec-agent`는 명시적으로 승인된 대상만 다루는 증거 중심 보안 점검 워크스페이스입니다.
+`Black-Spyder` is a controlled, evidence-driven security assessment workspace for explicitly authorized targets only.  
+`Black-Spyder`는 명시적으로 승인된 대상만 다루는 증거 중심 보안 점검 워크스페이스입니다.
 
 ## Project overview
 
-`sec-agent` helps an operator validate scope, capture one safe HTTP observation at a time, compare stored artifacts, extract response structure hints, and write reproducible findings. It is designed for operator-controlled defensive review and documentation, not offensive testing.
+`Black-Spyder` helps an operator validate scope, capture one safe HTTP observation at a time, compare stored artifacts, extract response structure hints, and write reproducible findings. It is designed for operator-controlled defensive review and documentation, not offensive testing.
 
 ## Safety model
 
@@ -161,4 +161,4 @@ python tools/orchestrate_candidates.py \
 
 ## Disclaimer (authorized use only)
 
-Use `sec-agent` only in environments where you have explicit authorization to perform a security assessment. The included tooling is intentionally conservative and operator-controlled.
+Use `Black-Spyder` only in environments where you have explicit authorization to perform a security assessment. The included tooling is intentionally conservative and operator-controlled.

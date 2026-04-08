@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sec-agent"
+name = "Black-Spyder"
 version = "0.1.0"
 description = "Controlled, evidence-driven security assessment assistant for authorized targets only"
 readme = "README.md"
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-sec-agent-bootstrap = "tools.bootstrap:main"
+black-spyder-bootstrap = "tools.bootstrap:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
