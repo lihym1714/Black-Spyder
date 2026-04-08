@@ -50,7 +50,7 @@
 macOS / Linux
 
 ```bash
-cd /Users/everspin/Side/black-spyder
+cd /path/to/repo
 python3 tools/bootstrap.py
 source .venv/bin/activate
 ```
@@ -58,7 +58,7 @@ source .venv/bin/activate
 Windows PowerShell
 
 ```powershell
-cd /Users/everspin/Side/black-spyder
+cd C:\path\to\repo
 python tools\bootstrap.py
 .\.venv\Scripts\Activate.ps1
 ```
@@ -68,7 +68,7 @@ python tools\bootstrap.py
 macOS / Linux
 
 ```bash
-cd /Users/everspin/Side/black-spyder
+cd /path/to/repo
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -79,7 +79,7 @@ python -m pip install -e .
 Windows PowerShell
 
 ```powershell
-cd /Users/everspin/Side/black-spyder
+cd C:\path\to\repo
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
