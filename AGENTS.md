@@ -1,14 +1,56 @@
 # AGENTS.md
 
 ## Repository layout
-- The active project lives under `sec-agent/`.
-- `sec-agent/AGENTS.md` defines the security-assessment operating rules for that project.
-- Agent prompts live in `sec-agent/agents/`.
-- Scope and execution guardrails live in `sec-agent/policies/`.
-- Local tool implementations live in `sec-agent/mcp/`, and operator entrypoints live in `sec-agent/tools/`.
-- `sec-agent/evidence/raw/` and `sec-agent/evidence/normalized/` store observation artifacts, `sec-agent/findings/` stores reproducible outputs, and `sec-agent/state/state.json` tracks local workflow state.
+- The active project now lives at repository root.
+- Agent prompts live in `agents/`.
+- Scope and execution guardrails live in `policies/`.
+- Local tool implementations live in `mcp/`, and operator entrypoints live in `tools/`.
+- `evidence/raw/` and `evidence/normalized/` store observation artifacts, `findings/` stores reproducible outputs, and `state/state.json` tracks local workflow state.
 
-## Working rules for future sessions
-- Treat `sec-agent/policies/scope.yaml` as the scope source of truth before proposing or simulating any action.
-- Keep the system evidence-first: artifacts should be written before conclusions or finding summaries.
-- Keep all tool behavior non-destructive by default: observational HTTP only, no bodies, no concurrency, no brute force, no bulk scanning.
+## Security Assessment Agent Rules
+
+### Mission
+
+This system performs security assessment workflows only on explicitly authorized targets.
+It prioritizes reproducible evidence over speculative conclusions.
+
+### Scope Enforcement
+
+* Only interact with hosts defined in `policies/scope.yaml`
+* Never expand scope automatically
+* Always validate target before any action
+
+### Safety Constraints
+
+* No destructive actions
+* No bulk or high-frequency requests
+* No credential attacks
+* No production interaction unless explicitly allowed
+* Mask sensitive data in all outputs
+
+### Workflow Standard
+
+1. Observe
+2. Hypothesize
+3. Plan
+4. Execute (via tools only)
+5. Verify
+6. Record
+
+### Evidence Rules
+
+* No claim without evidence
+* Always store artifacts before conclusions
+
+### Classification
+
+* confirmed
+* suspected
+* rejected
+
+### Output Discipline
+
+* structured
+* reproducible
+* limitations required
+* sensitive values masked
