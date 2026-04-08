@@ -1,0 +1,18 @@
+{
+  "request_id": "20260408-example-0001",
+  "host": "example.local",
+  "url": "http://example.local/api/health",
+  "method": "GET",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body_hash": "sha256:example",
+  "body_preview": "{\"status\":\"ok\"}",
+  "notes": [
+    "Single safe observation only.",
+    "No assumptions without corroborating evidence."
+  ],
+  "classification": "suspected",
+  "confidence": "low"
+}

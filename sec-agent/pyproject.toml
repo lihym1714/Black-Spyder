@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sec-agent"
+version = "0.1.0"
+description = "Controlled, evidence-driven security assessment assistant for authorized targets only"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx",
+  "pyyaml",
+  "rich",
+  "typer",
+  "pydantic",
+  "fastapi",
+  "uvicorn",
+  "python-multipart",
+]
+
+[project.scripts]
+sec-agent-bootstrap = "tools.bootstrap:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools*", "mcp*"]
+namespaces = true

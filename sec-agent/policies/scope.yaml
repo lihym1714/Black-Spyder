@@ -1,0 +1,48 @@
+# Explicitly allowed hosts for authorized testing only.
+allowed_hosts:
+  - example.local
+  - localhost
+  - 127.0.0.1
+
+# Restrict transport to standard local HTTP/S schemes.
+allowed_schemes:
+  - http
+  - https
+
+# Methods that may be executed automatically by the local tools.
+allowed_methods:
+  - GET
+  - HEAD
+  - OPTIONS
+
+# Methods that require explicit human review and are never auto-executed here.
+approval_required_methods:
+  - POST
+  - PUT
+  - PATCH
+  - DELETE
+
+# Conservative traffic cap for observational work.
+max_requests_per_minute: 20
+
+# Timeout per request to avoid hanging or stressing targets.
+request_timeout_seconds: 10
+
+# Predictable, identifiable user agent for local testing.
+user_agent: sec-agent/0.1 (+authorized-security-assessment)
+
+# Keep production-like targets out of bounds by default.
+production_allowed: false
+
+# Sensitive areas that should never be requested automatically.
+forbidden_path_patterns:
+  - "*/admin*"
+  - "*/internal*"
+  - "*/debug*"
+  - "*/actuator*"
+
+# Redirects are off by default to avoid accidental scope drift.
+allow_redirects: false
+
+# Cap response bodies so artifacts stay bounded and low impact.
+max_response_bytes: 65536

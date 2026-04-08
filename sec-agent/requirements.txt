@@ -1,0 +1,8 @@
+httpx
+pyyaml
+rich
+typer
+pydantic
+fastapi
+uvicorn
+python-multipart
