@@ -8,4 +8,5 @@ evidence/normalized/*
 !evidence/normalized/.gitkeep
 state/*.json
 !state/state.json
+state/*.lock
 *.pyc

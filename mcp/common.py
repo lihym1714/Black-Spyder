@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from fnmatch import fnmatch
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 from urllib.parse import urlparse
 
@@ -109,9 +111,11 @@ def build_request_id() -> str:
 
 def write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
+    with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
         json.dump(data, handle, indent=2, sort_keys=False)
         handle.write("\n")
+        temp_path = Path(handle.name)
+    os.replace(temp_path, path)
 
 
 def utc_now_iso() -> str:
