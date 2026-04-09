@@ -115,7 +115,7 @@ python -m pip install -e .
 
 ### Installation for LLM
 
-아래 프롬프트를 그대로 OpenCode에 붙여 넣으면 설치부터 브리지 실행, 초기 host registration까지 한 흐름으로 처리할 수 있습니다.
+아래 프롬프트를 그대로 OpenCode에 붙여 넣으면 설치부터 브리지 실행, 초기 host connection까지 한 흐름으로 처리할 수 있습니다.
 
 ```text
 Set up and connect Black-Spyder for this session.
@@ -123,24 +123,23 @@ Set up and connect Black-Spyder for this session.
 Do these steps in order:
 1. If the current working directory is not already the Black-Spyder repository root, clone `https://github.com/lihym1714/Black-Spyder.git` and enter that directory.
 2. Run `python3 tools/bootstrap.py`.
-3. Start the bridge in the background with the project virtualenv by running `./.venv/bin/black-spyder-opencode-bridge`.
+3. 가장 단순한 OpenCode용 흐름으로 `./.venv/bin/black-spyder opencode up`를 실행합니다.
 4. Wait until `http://127.0.0.1:8787/health` responds successfully.
-5. GET `/health` and confirm the bridge is healthy.
-6. GET `/registry` and load the available ecosystem catalog.
-7. POST `/register-host` with:
+5. 필요하면 POST `/connect` with:
    {
      "host_name": "opencode-host",
      "host_version": "1.0",
-     "capabilities": ["registry", "execute"]
+      "capabilities": ["registry", "execute"]
    }
-8. Treat the returned registry as the available command surface for this session.
-9. Keep the bridge process running and use POST `/execute` whenever you need a Black-Spyder command.
+6. Treat the returned registry as the available command surface for this session.
+7. 사용자가 자연어로 분석을 요청하면 먼저 POST `/analyze`를 사용하십시오.
+8. 특정 lower-level slash command가 꼭 필요할 때만 POST `/execute`를 사용하십시오.
 
 At the end, report:
 - whether bootstrap succeeded,
 - whether the bridge is reachable,
-- whether host registration succeeded,
-- and which commands are now available through the bridge.
+- whether `/connect` succeeded,
+- and confirm that prompt-first analysis should use `/analyze`.
 ```
 
 ## 사용 방법
@@ -154,6 +153,16 @@ python tools/dry_run.py
 dry run은 정책을 로드하고, 허용 호스트 및 메서드를 출력하고, 샘플 URL을 `scope_guard`로 검증하고, 필요 시 `state/state.json`을 초기화한 뒤, 실제 요청 없이 다음 안전한 작업을 제안합니다.
 
 ### 에이전트 런타임 빠른 시작
+
+### 가장 쉬운 방법
+
+```bash
+black-spyder opencode up
+```
+
+가장 짧고 직관적인 OpenCode용 명령으로 브리지를 실행하고 기본 연결 상태를 준비합니다.
+
+가장 단순한 prompt-first 사용 방식은 OpenCode가 먼저 `/analyze`를 호출하고, 꼭 필요한 경우에만 `/execute`로 세부 명령을 사용하는 것입니다.
 
 ```bash
 black-spyder-agent registry
@@ -174,7 +183,8 @@ black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
 black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
-black-spyder-opencode-bridge
+black-spyder up
+black-spyder opencode up
 ```
 
 에이전트 런타임도 기본 MCP 도구와 동일한 안전 모델을 따릅니다. 즉, 정책 기반 관찰만 허용하고, 한 번에 한 단계씩 진행하며, 증거 없이 결론을 내리지 않습니다.
@@ -183,12 +193,14 @@ black-spyder-opencode-bridge
 
 ### OpenCode 호스트 브리지
 
-`black-spyder-opencode-bridge`를 실행하면 `127.0.0.1:8787`에서 호스트용 브리지가 열립니다.
+가장 쉬운 방법은 `black-spyder opencode up`입니다. 단순히 브리지만 띄우려면 `black-spyder up` 또는 `black-spyder-opencode-bridge`를 사용하십시오.
 
 사용 가능한 엔드포인트:
 
 - `GET /health` : 브리지 상태와 structured doctor 보고서 반환
 - `GET /registry` : machine-readable bridge manifest와 ecosystem catalog 반환
+- `POST /connect` : host registration과 registry 반환을 한 번에 처리
+- `POST /analyze` : 자연어 goal을 받아 가장 안전한 분석 경로를 자동 선택하고 실행
 - `POST /register-host` : 로컬 host registration 기록
 - `POST /execute` : 기존 runtime을 통해 slash-style 명령 1개 실행
 

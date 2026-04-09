@@ -116,7 +116,7 @@ python -m pip install -e .
 
 ### Installation for LLM
 
-Paste this prompt into OpenCode as-is to let it handle installation, bridge startup, and initial host registration in one flow:
+Paste this prompt into OpenCode as-is to let it handle installation, bridge startup, and initial host connection in one flow:
 
 ```text
 Set up and connect Black-Spyder for this session.
@@ -124,24 +124,23 @@ Set up and connect Black-Spyder for this session.
 Do these steps in order:
 1. If the current working directory is not already the Black-Spyder repository root, clone `https://github.com/lihym1714/Black-Spyder.git` and enter that directory.
 2. Run `python3 tools/bootstrap.py`.
-3. Start the bridge in the background with the project virtualenv by running `./.venv/bin/black-spyder-opencode-bridge`.
+3. Start the simplest OpenCode-ready flow by running `./.venv/bin/black-spyder opencode up`.
 4. Wait until `http://127.0.0.1:8787/health` responds successfully.
-5. GET `/health` and confirm the bridge is healthy.
-6. GET `/registry` and load the available ecosystem catalog.
-7. POST `/register-host` with:
+5. If needed, POST `/connect` with:
    {
      "host_name": "opencode-host",
      "host_version": "1.0",
-     "capabilities": ["registry", "execute"]
+      "capabilities": ["registry", "execute"]
    }
-8. Treat the returned registry as the available command surface for this session.
-9. Keep the bridge process running and use POST `/execute` whenever you need a Black-Spyder command.
+6. Treat the returned registry as the available command surface for this session.
+7. When the user asks for analysis in natural language, prefer POST `/analyze` first.
+8. Use POST `/execute` only when you intentionally want a specific lower-level slash command.
 
 At the end, report:
 - whether bootstrap succeeded,
 - whether the bridge is reachable,
-- whether host registration succeeded,
-- and which commands are now available through the bridge.
+- whether `/connect` succeeded,
+- and confirm that prompt-first analysis should use `/analyze`.
 ```
 
 ## Usage
@@ -155,6 +154,16 @@ python tools/dry_run.py
 The dry run loads the policy, prints allowed hosts and methods, validates a sample URL with `scope_guard`, initializes `state/state.json` if needed, and prints the next recommended safe action without making a live request.
 
 ### agent runtime quick start
+
+### easiest way
+
+```bash
+black-spyder opencode up
+```
+
+This starts the local OpenCode bridge on `127.0.0.1:8787` and prepares the default OpenCode host connection state.
+
+For the simplest prompt-first usage, let OpenCode call `/analyze` and only fall back to `/execute` when it needs a specific Black-Spyder slash command.
 
 ```bash
 black-spyder-agent registry
@@ -175,7 +184,8 @@ black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
 black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
-black-spyder-opencode-bridge
+black-spyder up
+black-spyder opencode up
 ```
 
 The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
@@ -184,12 +194,14 @@ Bootstrap now generates the ecosystem index and runs the same structured doctor 
 
 ### OpenCode host bridge
 
-Run `black-spyder-opencode-bridge` to expose a host-facing bridge on `127.0.0.1:8787`.
+Run `black-spyder opencode up` for the simplest OpenCode-oriented flow, or `black-spyder up` / `black-spyder-opencode-bridge` if you only want to start the bridge.
 
 Available endpoints:
 
 - `GET /health` returns bridge health plus the structured doctor report
 - `GET /registry` returns the machine-readable bridge manifest and ecosystem catalog
+- `POST /connect` performs host registration and returns the registry in one response
+- `POST /analyze` accepts a natural-language goal and lets Black-Spyder choose and run the safest matching workflow automatically
 - `POST /register-host` records a local host registration
 - `POST /execute` runs one slash-style command through the existing runtime
 
