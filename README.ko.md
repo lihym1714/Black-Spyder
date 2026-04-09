@@ -128,7 +128,9 @@ black-spyder-agent registry
 black-spyder-agent commands
 black-spyder-agent ecosystem
 black-spyder-agent doctor
+black-spyder-agent session-search --workflow observe --status completed
 black-spyder-agent session-show --session-id session-1234abcd
+black-spyder-agent session-resume --session-id session-1234abcd
 black-spyder-agent route --url http://localhost:8000/health --method GET
 black-spyder-agent observe --url http://localhost:8000/health --plan-only
 black-spyder-agent recon --artifact-path evidence/normalized/example.json
@@ -136,12 +138,15 @@ black-spyder-agent compare-auth --left-artifact-path evidence/normalized/left.js
 black-spyder-agent mobile-review --target-path artifacts/mobile_app_extracted
 black-spyder-agent slash /observe-safe url=http://localhost:8000/health method=GET execute=false
 black-spyder-agent sessions
+black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
+black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
 ```
 
 에이전트 런타임도 기본 MCP 도구와 동일한 안전 모델을 따릅니다. 즉, 정책 기반 관찰만 허용하고, 한 번에 한 단계씩 진행하며, 증거 없이 결론을 내리지 않습니다.
 추적 대상인 `state/state.json`은 깨끗한 템플릿으로 남겨 두고, 실제 런타임 요약과 세션 타임라인은 `state/runtime_state.json`에 기록하여 일반 실행만으로 저장소 상태 파일이 더러워지지 않게 했습니다.
+이제 bootstrap은 ecosystem index를 생성하고, 운영자가 직접 보는 것과 같은 구조화된 doctor 보고서를 함께 실행합니다.
 
 ### 도구 사용 예시
 

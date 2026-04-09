@@ -129,7 +129,9 @@ black-spyder-agent registry
 black-spyder-agent commands
 black-spyder-agent ecosystem
 black-spyder-agent doctor
+black-spyder-agent session-search --workflow observe --status completed
 black-spyder-agent session-show --session-id session-1234abcd
+black-spyder-agent session-resume --session-id session-1234abcd
 black-spyder-agent route --url http://localhost:8000/health --method GET
 black-spyder-agent observe --url http://localhost:8000/health --plan-only
 black-spyder-agent recon --artifact-path evidence/normalized/example.json
@@ -137,12 +139,15 @@ black-spyder-agent compare-auth --left-artifact-path evidence/normalized/left.js
 black-spyder-agent mobile-review --target-path artifacts/mobile_app_extracted
 black-spyder-agent slash /observe-safe url=http://localhost:8000/health method=GET execute=false
 black-spyder-agent sessions
+black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
+black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
 ```
 
 The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
 Tracked `state/state.json` remains a clean template, while local runtime summaries and session timelines are written to `state/runtime_state.json` so normal execution does not dirty the repository state file.
+Bootstrap now generates the ecosystem index and runs the same structured doctor report that operators can inspect manually.
 
 ### tool usage examples
 
