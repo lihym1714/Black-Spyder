@@ -14,6 +14,8 @@ from tools.ecosystem import ecosystem_doctor, ecosystem_snapshot
 
 BRIDGE_STATE_PATH = PROJECT_ROOT / "state" / "opencode_bridge_state.json"
 BRIDGE_MANIFEST_PATH = PROJECT_ROOT / "state" / "opencode-bridge-manifest.json"
+BRIDGE_HOST = "127.0.0.1"
+BRIDGE_PORT = 8787
 
 
 class HostRegistrationRequest(BaseModel):
@@ -25,6 +27,17 @@ class HostRegistrationRequest(BaseModel):
 class ExecuteRequest(BaseModel):
     command_name: str = Field(..., min_length=1)
     params: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnalyzeRequest(BaseModel):
+    goal: str = Field(..., min_length=1)
+    url: str | None = None
+    method: str = "GET"
+    artifact_path: str | None = None
+    left_artifact_path: str | None = None
+    right_artifact_path: str | None = None
+    target_path: str | None = None
+    rules_path: str | None = None
 
 
 def default_bridge_state() -> dict[str, Any]:
@@ -68,6 +81,8 @@ def build_bridge_manifest() -> dict[str, Any]:
         "routes": {
             "health": "/health",
             "registry": "/registry",
+            "connect": "/connect",
+            "analyze": "/analyze",
             "register_host": "/register-host",
             "execute": "/execute",
         },
@@ -80,6 +95,13 @@ def build_bridge_manifest() -> dict[str, Any]:
 
 def record_host_registration(payload: HostRegistrationRequest) -> dict[str, Any]:
     state = load_bridge_state()
+    for existing in state.setdefault("hosts", []):
+        if (
+            existing.get("host_name") == payload.host_name
+            and existing.get("host_version") == payload.host_version
+            and existing.get("capabilities") == payload.capabilities
+        ):
+            return existing
     host_record = {
         "host_id": f"host-{build_request_id()}",
         "host_name": payload.host_name,
@@ -90,6 +112,19 @@ def record_host_registration(payload: HostRegistrationRequest) -> dict[str, Any]
     state.setdefault("hosts", []).append(host_record)
     save_bridge_state(state)
     return host_record
+
+
+def connect_host(payload: HostRegistrationRequest) -> dict[str, Any]:
+    host = record_host_registration(payload)
+    manifest = build_bridge_manifest()
+    doctor = ecosystem_doctor()
+    return {
+        "status": "connected",
+        "host": host,
+        "registry": manifest,
+        "execute_route": "/execute",
+        "doctor": doctor,
+    }
 
 
 def record_execution(command_name: str, params: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
@@ -134,6 +169,11 @@ def register_host(payload: HostRegistrationRequest) -> dict[str, Any]:
     }
 
 
+@app.post("/connect")
+def connect(payload: HostRegistrationRequest) -> dict[str, Any]:
+    return connect_host(payload)
+
+
 @app.post("/execute")
 def execute(payload: ExecuteRequest) -> dict[str, Any]:
     try:
@@ -147,9 +187,26 @@ def execute(payload: ExecuteRequest) -> dict[str, Any]:
     }
 
 
+@app.post("/analyze")
+def analyze(payload: AnalyzeRequest) -> dict[str, Any]:
+    try:
+        params = payload.model_dump(exclude_none=True)
+        result = run_named_workflow(
+            "/analyze",
+            params,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    execution = record_execution("/analyze", params, result)
+    return {
+        "status": "ok",
+        "execution": execution,
+    }
+
+
 def main() -> None:
     build_bridge_manifest()
-    uvicorn.run(app, host="127.0.0.1", port=8787)
+    uvicorn.run(app, host=BRIDGE_HOST, port=BRIDGE_PORT)
 
 
 if __name__ == "__main__":
