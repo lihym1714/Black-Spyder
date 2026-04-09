@@ -7,6 +7,7 @@ import typer
 
 from tools.ecosystem import ecosystem_doctor, ecosystem_snapshot
 from tools.opencode_bridge import BRIDGE_HOST, BRIDGE_PORT, HostRegistrationRequest, connect_host, main as bridge_main
+from tools.agent_runtime import run_autonomous_analysis, run_conversational_analysis
 
 app = typer.Typer(add_completion=False, help="Simplified Black-Spyder entrypoint.")
 opencode_app = typer.Typer(add_completion=False, help="OpenCode-oriented shortcuts.")
@@ -28,8 +29,6 @@ def analyze(
     artifact_path: str | None = typer.Option(None, help="Optional normalized artifact path."),
     target_path: str | None = typer.Option(None, help="Optional local artifact directory."),
 ) -> None:
-    from tools.agent_runtime import run_autonomous_analysis
-
     emit(
         run_autonomous_analysis(
             goal=goal,
@@ -38,6 +37,11 @@ def analyze(
             target_path=target_path,
         )
     )
+
+
+@app.command("converse")
+def converse(goal: str = typer.Option(..., help="Conversational natural-language request.")) -> None:
+    emit(run_conversational_analysis(goal=goal))
 
 
 @app.command("up")
@@ -72,7 +76,7 @@ def opencode_up(
         "bridge_url": f"http://{BRIDGE_HOST}:{BRIDGE_PORT}",
         "host": connected["host"],
         "command_count": len(connected["registry"]["ecosystem"]["commands"]),
-        "next_step": "POST /analyze first for prompt-driven analysis; fall back to /execute only for specific low-level commands.",
+        "next_step": "POST /converse first for conversation-style prompts; use /analyze for already structured analysis and /execute only for low-level commands.",
     }
     if dry_run:
         emit(summary)

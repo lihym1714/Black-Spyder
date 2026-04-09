@@ -69,6 +69,17 @@ class SimpleEntryTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertTrue(payload["executed"])
 
+    @patch(
+        "tools.simple_entry.run_conversational_analysis",
+        return_value={"analysis_mode": "conversation", "needs_clarification": True},
+    )
+    def test_converse_command_uses_conversation_layer(self, mock_converse) -> None:
+        result = self.runner.invoke(app, ["converse", "--goal", "apk 분석해줘"])
+
+        self.assertEqual(result.exit_code, 0)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["needs_clarification"])
+
 
 if __name__ == "__main__":
     unittest.main()

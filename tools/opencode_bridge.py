@@ -40,6 +40,10 @@ class AnalyzeRequest(BaseModel):
     rules_path: str | None = None
 
 
+class ConverseRequest(BaseModel):
+    goal: str = Field(..., min_length=1)
+
+
 def default_bridge_state() -> dict[str, Any]:
     return {
         "created_at": utc_now_iso(),
@@ -82,6 +86,7 @@ def build_bridge_manifest() -> dict[str, Any]:
             "health": "/health",
             "registry": "/registry",
             "connect": "/connect",
+            "converse": "/converse",
             "analyze": "/analyze",
             "register_host": "/register-host",
             "execute": "/execute",
@@ -198,6 +203,20 @@ def analyze(payload: AnalyzeRequest) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     execution = record_execution("/analyze", params, result)
+    return {
+        "status": "ok",
+        "execution": execution,
+    }
+
+
+@app.post("/converse")
+def converse(payload: ConverseRequest) -> dict[str, Any]:
+    try:
+        params = {"goal": payload.goal}
+        result = run_named_workflow("/converse", params)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    execution = record_execution("/converse", params, result)
     return {
         "status": "ok",
         "execution": execution,
