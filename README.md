@@ -60,6 +60,8 @@
 - `tools/ecosystem.py` loads machine-readable agent metadata and slash-command catalog metadata from `agents/` and `commands/`
 - `tools/agent_cli.py` exposes operator-facing commands such as `route`, `observe`, `recon`, `compare-auth`, `mobile-review`, `write-finding`, and `next-step`
 - `black-spyder-agent` is the installed console entrypoint for the same runtime
+- `tools/opencode_bridge.py` exposes the final OpenCode-facing bridge layer for host registration, registry discovery, and command execution
+- `black-spyder-opencode-bridge` starts that host bridge on `127.0.0.1:8787`
 - `state/state.json` stays as a tracked template, while local runtime summaries and sessions live in gitignored `state/runtime_state.json`
 
 ### policy system
@@ -143,11 +145,23 @@ black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
 black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
+black-spyder-opencode-bridge
 ```
 
 The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
 Tracked `state/state.json` remains a clean template, while local runtime summaries and session timelines are written to `state/runtime_state.json` so normal execution does not dirty the repository state file.
 Bootstrap now generates the ecosystem index and runs the same structured doctor report that operators can inspect manually.
+
+### OpenCode host bridge
+
+Run `black-spyder-opencode-bridge` to expose a host-facing bridge on `127.0.0.1:8787`.
+
+Available endpoints:
+
+- `GET /health` returns bridge health plus the structured doctor report
+- `GET /registry` returns the machine-readable bridge manifest and ecosystem catalog
+- `POST /register-host` records a local host registration
+- `POST /execute` runs one slash-style command through the existing runtime
 
 ### tool usage examples
 

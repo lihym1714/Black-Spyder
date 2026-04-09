@@ -59,6 +59,8 @@
 - `tools/ecosystem.py`는 `agents/`와 `commands/`에서 machine-readable 메타데이터를 읽어 에이전트/명령 카탈로그를 구성합니다
 - `tools/agent_cli.py`는 `route`, `observe`, `recon`, `compare-auth`, `mobile-review`, `write-finding`, `next-step` 같은 운영자용 명령을 제공합니다
 - `black-spyder-agent`는 같은 런타임을 위한 설치형 콘솔 엔트리포인트입니다
+- `tools/opencode_bridge.py`는 호스트 등록, registry 조회, 명령 실행을 위한 최종 OpenCode 브리지 레이어를 제공합니다
+- `black-spyder-opencode-bridge`는 그 브리지를 `127.0.0.1:8787`에서 실행합니다
 - `state/state.json`은 추적 가능한 템플릿으로만 유지하고, 로컬 런타임 요약과 세션은 gitignored `state/runtime_state.json`에 저장합니다
 
 ### 정책 시스템
@@ -142,11 +144,23 @@ black-spyder-agent slash /session-search workflow=observe status=completed
 black-spyder-agent slash /session-show session_id=session-1234abcd
 black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
+black-spyder-opencode-bridge
 ```
 
 에이전트 런타임도 기본 MCP 도구와 동일한 안전 모델을 따릅니다. 즉, 정책 기반 관찰만 허용하고, 한 번에 한 단계씩 진행하며, 증거 없이 결론을 내리지 않습니다.
 추적 대상인 `state/state.json`은 깨끗한 템플릿으로 남겨 두고, 실제 런타임 요약과 세션 타임라인은 `state/runtime_state.json`에 기록하여 일반 실행만으로 저장소 상태 파일이 더러워지지 않게 했습니다.
 이제 bootstrap은 ecosystem index를 생성하고, 운영자가 직접 보는 것과 같은 구조화된 doctor 보고서를 함께 실행합니다.
+
+### OpenCode 호스트 브리지
+
+`black-spyder-opencode-bridge`를 실행하면 `127.0.0.1:8787`에서 호스트용 브리지가 열립니다.
+
+사용 가능한 엔드포인트:
+
+- `GET /health` : 브리지 상태와 structured doctor 보고서 반환
+- `GET /registry` : machine-readable bridge manifest와 ecosystem catalog 반환
+- `POST /register-host` : 로컬 host registration 기록
+- `POST /execute` : 기존 runtime을 통해 slash-style 명령 1개 실행
 
 ### 도구 사용 예시
 
