@@ -36,6 +36,7 @@
 - `mcp/response_diff.py` compares two normalized observations deterministically
 - `mcp/schema_extract.py` extracts candidate fields, endpoint patterns, and auth hints from stored observations
 - `mcp/artifact_writer.py` writes findings or evidence only inside approved project paths
+- `mcp/yara_scan.py` runs optional read-only YARA scans against local artifacts using local rules or operator-supplied rules
 - `mcp/common.py` holds shared policy, masking, hashing, and JSON helpers
 
 ### LLM orchestration model
@@ -108,11 +109,14 @@ The dry run loads the policy, prints allowed hosts and methods, validates a samp
 
 ### tool usage examples
 
+These commands assume you already activated `.venv`. If you prefer not to activate it, replace `python` with `./.venv/bin/python` on macOS/Linux.
+
 ```bash
 python mcp/scope_guard.py --url http://example.local/ --method GET
 python mcp/http_probe.py --url http://localhost:8000/health --method GET
 python mcp/response_diff.py --left-artifact-path evidence/normalized/left.json --right-artifact-path evidence/normalized/right.json
 python mcp/schema_extract.py --artifact-path evidence/normalized/example.json
+python mcp/yara_scan.py --target-path artifacts/mobile_app_extracted
 python mcp/artifact_writer.py --relative-path findings/example.md --mode text --content "# Example"
 ```
 
@@ -133,7 +137,8 @@ Update `policies/scope.yaml` before any real assessment.
 3. store raw and normalized artifacts automatically
 4. compare artifacts with `response_diff` when multiple observations exist
 5. extract structure hints with `schema_extract` if needed
-6. write findings with `artifact_writer` only after evidence is stored
+6. optionally run `yara_scan` for pattern-based control and SDK clues in local artifacts
+7. write findings with `artifact_writer` only after evidence is stored
 
 ## Approval-gated automation
 
@@ -158,6 +163,7 @@ python tools/orchestrate_candidates.py \
 - it does not implement exploitation, scanner orchestration, or bypass logic
 - authorization analysis remains hypothesis-driven until supported by comparative evidence
 - JSON preview parsing in `schema_extract` is best-effort and may remain incomplete for truncated bodies
+- YARA support is optional and pattern-based; matches are triage clues, not proof by themselves
 
 ## Disclaimer (authorized use only)
 

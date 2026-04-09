@@ -1,0 +1,4 @@
+apiBaseUrl=https://example.local/api
+networkSecurityConfig
+android:debuggable="true"
+setJavaScriptEnabled
