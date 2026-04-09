@@ -1,13 +1,16 @@
 PYTHON ?= python3
 VENV_PYTHON := $(if $(wildcard .venv/bin/python),.venv/bin/python,$(PYTHON))
 
-.PHONY: bootstrap dry-run format-help tree
+.PHONY: bootstrap dry-run agent format-help tree
 
 bootstrap:
 	$(VENV_PYTHON) tools/bootstrap.py
 
 dry-run:
 	$(VENV_PYTHON) tools/dry_run.py
+
+agent:
+	$(VENV_PYTHON) tools/agent_cli.py registry
 
 format-help:
 	@printf '%s\n' 'Recommended formatters (optional):'

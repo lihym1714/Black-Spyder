@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 black-spyder-bootstrap = "tools.bootstrap:main"
+black-spyder-agent = "tools.agent_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
