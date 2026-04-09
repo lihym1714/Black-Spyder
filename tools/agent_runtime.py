@@ -6,7 +6,7 @@ import re
 import time
 from collections import Counter
 from contextlib import contextmanager
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -18,7 +18,7 @@ from mcp.response_diff import diff_observations
 from mcp.schema_extract import extract_schema
 from mcp.scope_guard import evaluate_scope
 from mcp.yara_scan import run_yara_scan
-from tools.ecosystem import load_agent_registry
+from tools.ecosystem import build_runtime_run_manifest, load_agent_registry
 
 STATE_FILE = PROJECT_ROOT / "state" / "state.json"
 RUNTIME_STATE_FILE = PROJECT_ROOT / "state" / "runtime_state.json"
@@ -27,6 +27,15 @@ FINDING_TEMPLATE = PROJECT_ROOT / "templates" / "finding.md"
 AUTO_EXECUTE_METHODS = {"GET", "HEAD", "OPTIONS"}
 EVIDENCE_ROOTS = [PROJECT_ROOT / "evidence" / "normalized", PROJECT_ROOT / "evidence" / "raw"]
 ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts"
+
+
+@dataclass(frozen=True)
+class RouteRule:
+    workflow: str
+    agent_name: str
+    rationale: str
+    tool: str
+    reason: str
 def default_state_summary() -> dict[str, Any]:
     return {
         "created_at": utc_now_iso(),
@@ -168,6 +177,7 @@ def start_session(workflow: str, agent_name: str, inputs: dict[str, Any]) -> tup
         "session_id": f"session-{build_request_id()}",
         "workflow": workflow,
         "agent": agent_name,
+        "run_manifest": build_runtime_run_manifest(workflow, agent_name, inputs),
         "status": "running",
         "started_at": utc_now_iso(),
         "updated_at": utc_now_iso(),
@@ -230,6 +240,90 @@ def list_agents() -> dict[str, Any]:
     }
 
 
+def select_route_rule(
+    *,
+    url: str | None,
+    method: str,
+    artifact_path: str | None,
+    left_artifact_path: str | None,
+    right_artifact_path: str | None,
+    finding_title: str | None,
+    target_path: str | None,
+) -> tuple[RouteRule, dict[str, Any]]:
+    ordered_rules: list[tuple[bool, RouteRule, dict[str, Any]]] = [
+        (
+            bool(target_path),
+            RouteRule(
+                workflow="mobile-review",
+                agent_name="mobile-app-analyzer",
+                rationale="A local artifact tree is present, so mobile artifact review is the safest specialized workflow.",
+                tool="yara_scan",
+                reason="Use read-only local pattern matching to gather non-destructive clues first.",
+            ),
+            {"target_path": target_path},
+        ),
+        (
+            bool(left_artifact_path and right_artifact_path),
+            RouteRule(
+                workflow="compare-auth",
+                agent_name="auth-analyzer",
+                rationale="Two normalized artifacts indicate a comparison workflow for authorization review.",
+                tool="response_diff",
+                reason="Compare deterministic artifacts before forming any authorization hypothesis.",
+            ),
+            {"left_artifact_path": left_artifact_path, "right_artifact_path": right_artifact_path},
+        ),
+        (
+            bool(artifact_path),
+            RouteRule(
+                workflow="recon",
+                agent_name="recon-reader",
+                rationale="A normalized artifact is available, so structure-first review should happen before any stronger claim.",
+                tool="schema_extract",
+                reason="Extract candidate fields and auth hints from stored evidence.",
+            ),
+            {"artifact_path": artifact_path},
+        ),
+        (
+            bool(finding_title),
+            RouteRule(
+                workflow="write-finding",
+                agent_name="evidence-writer",
+                rationale="The operator provided finding intent, so the evidence-writer should assemble a reproducible record.",
+                tool="artifact_writer",
+                reason="Persist a finding only after evidence inputs are provided.",
+            ),
+            {"title": finding_title},
+        ),
+        (
+            bool(url),
+            RouteRule(
+                workflow="observe",
+                agent_name="sec-orchestrator",
+                rationale="A concrete URL implies an observe-first workflow under policy control.",
+                tool="scope_guard",
+                reason="Scope validation must precede every safe observation.",
+            ),
+            {"url": url, "method": method.upper()},
+        ),
+    ]
+
+    for matches, rule, payload in ordered_rules:
+        if matches:
+            return rule, payload
+
+    return (
+        RouteRule(
+            workflow="route",
+            agent_name="sec-orchestrator",
+            rationale="Default to orchestrator until concrete evidence inputs identify a narrower workflow.",
+            tool="scope_guard",
+            reason="Validate a candidate request before any network action.",
+        ),
+        {"url": url or "http://example.local/", "method": method.upper()},
+    )
+
+
 def route_workflow(
     *,
     goal: str | None = None,
@@ -242,70 +336,26 @@ def route_workflow(
     target_path: str | None = None,
 ) -> dict[str, Any]:
     registry = load_agent_registry()
-    workflow = "route"
-    agent_name = "sec-orchestrator"
-    rationale = "Default to orchestrator until concrete evidence inputs identify a narrower workflow."
-    next_action: dict[str, Any] = {
-        "tool": "scope_guard",
-        "reason": "Validate a candidate request before any network action.",
-        "input": {"url": url or "http://example.local/", "method": method.upper()},
-    }
-
-    if target_path:
-        workflow = "mobile-review"
-        agent_name = "mobile-app-analyzer"
-        rationale = "A local artifact tree is present, so mobile artifact review is the safest specialized workflow."
-        next_action = {
-            "tool": "yara_scan",
-            "reason": "Use read-only local pattern matching to gather non-destructive clues first.",
-            "input": {"target_path": target_path},
-        }
-    elif left_artifact_path and right_artifact_path:
-        workflow = "compare-auth"
-        agent_name = "auth-analyzer"
-        rationale = "Two normalized artifacts indicate a comparison workflow for authorization review."
-        next_action = {
-            "tool": "response_diff",
-            "reason": "Compare deterministic artifacts before forming any authorization hypothesis.",
-            "input": {
-                "left_artifact_path": left_artifact_path,
-                "right_artifact_path": right_artifact_path,
-            },
-        }
-    elif artifact_path:
-        workflow = "recon"
-        agent_name = "recon-reader"
-        rationale = "A normalized artifact is available, so structure-first review should happen before any stronger claim."
-        next_action = {
-            "tool": "schema_extract",
-            "reason": "Extract candidate fields and auth hints from stored evidence.",
-            "input": {"artifact_path": artifact_path},
-        }
-    elif finding_title:
-        workflow = "write-finding"
-        agent_name = "evidence-writer"
-        rationale = "The operator provided finding intent, so the evidence-writer should assemble a reproducible record."
-        next_action = {
-            "tool": "artifact_writer",
-            "reason": "Persist a finding only after evidence inputs are provided.",
-            "input": {"title": finding_title},
-        }
-    elif url:
-        workflow = "observe"
-        agent_name = "sec-orchestrator"
-        rationale = "A concrete URL implies an observe-first workflow under policy control."
-        next_action = {
-            "tool": "scope_guard",
-            "reason": "Scope validation must precede every safe observation.",
-            "input": {"url": url, "method": method.upper()},
-        }
+    route_rule, route_input = select_route_rule(
+        url=url,
+        method=method,
+        artifact_path=artifact_path,
+        left_artifact_path=left_artifact_path,
+        right_artifact_path=right_artifact_path,
+        finding_title=finding_title,
+        target_path=target_path,
+    )
 
     return {
-        "workflow": workflow,
-        "agent": asdict(registry[agent_name]),
+        "workflow": route_rule.workflow,
+        "agent": asdict(registry[route_rule.agent_name]),
         "goal": goal,
-        "rationale": rationale,
-        "next_action": next_action,
+        "rationale": route_rule.rationale,
+        "next_action": {
+            "tool": route_rule.tool,
+            "reason": route_rule.reason,
+            "input": route_input,
+        },
         "limitations": [
             "No destructive or approval-required method will be auto-executed.",
             "Stored artifacts remain the source of truth for later analysis.",

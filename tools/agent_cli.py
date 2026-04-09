@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import typer
 
@@ -11,7 +12,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.ecosystem import ecosystem_doctor, ecosystem_snapshot, get_command, get_runtime_session, list_runtime_sessions
+from tools.ecosystem import (
+    RUN_MANIFEST_SCHEMA_VERSION,
+    ecosystem_doctor,
+    ecosystem_snapshot,
+    get_command,
+    get_runtime_session,
+    get_session_run_manifest,
+    list_runtime_sessions,
+    search_runtime_sessions,
+)
 from tools.agent_runtime import (
     list_agents,
     next_step,
@@ -24,6 +34,10 @@ from tools.agent_runtime import (
 )
 
 app = typer.Typer(add_completion=False, help="Run the Black-Spyder executable agent workflows.")
+@dataclass(frozen=True)
+class WorkflowDispatchRule:
+    required_params: tuple[str, ...]
+    handler: Callable[[dict[str, Any]], dict[str, Any]]
 
 
 def emit(data: dict[str, Any]) -> None:
@@ -90,73 +104,171 @@ def parse_key_value_args(pairs: list[str]) -> dict[str, Any]:
     return parsed
 
 
+def canonicalize_for_manifest(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: canonicalize_for_manifest(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [canonicalize_for_manifest(item) for item in value]
+    return value
+
+
+def build_run_manifest(command_name: str, params: dict[str, Any]) -> dict[str, Any]:
+    command = get_command(command_name)
+    return {
+        "schema_version": RUN_MANIFEST_SCHEMA_VERSION,
+        "command": command.name,
+        "workflow": command.workflow,
+        "agent": command.agent,
+        "params": canonicalize_for_manifest(params),
+    }
+
+
+def handle_registry(_: dict[str, Any]) -> dict[str, Any]:
+    return list_agents()
+
+
+def handle_commands(_: dict[str, Any]) -> dict[str, Any]:
+    return {"commands": ecosystem_snapshot()["commands"]}
+
+
+def handle_ecosystem(_: dict[str, Any]) -> dict[str, Any]:
+    return ecosystem_snapshot()
+
+
+def handle_observe(params: dict[str, Any]) -> dict[str, Any]:
+    return run_observe(
+        url=str(params["url"]),
+        method=str(params.get("method", "GET")),
+        headers=require_dict_param(params, "headers"),
+        execute=require_bool_param(params, "execute", True),
+    )
+
+
+def handle_recon(params: dict[str, Any]) -> dict[str, Any]:
+    return run_recon(artifact_path=str(params["artifact_path"]))
+
+
+def handle_compare_auth(params: dict[str, Any]) -> dict[str, Any]:
+    return run_compare_auth(
+        left_artifact_path=str(params["left_artifact_path"]),
+        right_artifact_path=str(params["right_artifact_path"]),
+    )
+
+
+def handle_mobile_review(params: dict[str, Any]) -> dict[str, Any]:
+    rules_path = params.get("rules_path")
+    return run_mobile_review(
+        target_path=str(params["target_path"]),
+        rules_path=str(rules_path) if rules_path is not None else None,
+    )
+
+
+def handle_write_finding(params: dict[str, Any]) -> dict[str, Any]:
+    return run_write_finding(
+        title=str(params["title"]),
+        host=str(params["host"]),
+        endpoint=str(params["endpoint"]),
+        method=str(params.get("method", "GET")),
+        auth_context=str(params.get("auth_context", "unknown")),
+        classification=str(params.get("classification", "suspected")),
+        artifacts=require_string_list_param(params, "artifacts", required=True),
+        observations=require_string_list_param(params, "observations", required=True),
+        limitations=require_string_list_param(params, "limitations"),
+        remediation_notes=require_string_list_param(params, "remediation_notes"),
+        relative_output_path=str(params["relative_output_path"]) if "relative_output_path" in params else None,
+    )
+
+
+def handle_next_step(_: dict[str, Any]) -> dict[str, Any]:
+    return next_step()
+
+
+def handle_sessions(_: dict[str, Any]) -> dict[str, Any]:
+    return list_runtime_sessions()
+
+
+def handle_session_search(params: dict[str, Any]) -> dict[str, Any]:
+    return search_runtime_sessions(
+        query=str(params["query"]) if "query" in params else None,
+        workflow=str(params["workflow"]) if "workflow" in params else None,
+        status=str(params["status"]) if "status" in params else None,
+        agent=str(params["agent"]) if "agent" in params else None,
+    )
+
+
+def handle_session_show(params: dict[str, Any]) -> dict[str, Any]:
+    return get_runtime_session(str(params["session_id"]))
+
+
+def execute_run_manifest(run_manifest: dict[str, Any]) -> dict[str, Any]:
+    workflow = run_manifest.get("workflow")
+    params = run_manifest.get("params", {})
+    if not isinstance(workflow, str) or workflow not in WORKFLOW_DISPATCH_TABLE:
+        raise typer.BadParameter("Unsupported workflow mapping in run manifest")
+    if not isinstance(params, dict):
+        raise typer.BadParameter("Run manifest params must be an object")
+
+    rule = WORKFLOW_DISPATCH_TABLE[workflow]
+    missing = sorted(param for param in rule.required_params if param not in params)
+    if missing:
+        raise typer.BadParameter(f"Run manifest missing required params: {', '.join(missing)}")
+    return rule.handler(params)
+
+
+def handle_session_resume(params: dict[str, Any]) -> dict[str, Any]:
+    session = get_runtime_session(str(params["session_id"]))
+    run_manifest = get_session_run_manifest(session)
+    return {
+        "resumed_from_session_id": session["session_id"],
+        "run_manifest": run_manifest,
+        "result": execute_run_manifest(run_manifest),
+    }
+
+
+def handle_doctor(_: dict[str, Any]) -> dict[str, Any]:
+    return ecosystem_doctor()
+
+
+WORKFLOW_DISPATCH_TABLE: dict[str, WorkflowDispatchRule] = {
+    "registry": WorkflowDispatchRule(required_params=(), handler=handle_registry),
+    "commands": WorkflowDispatchRule(required_params=(), handler=handle_commands),
+    "ecosystem": WorkflowDispatchRule(required_params=(), handler=handle_ecosystem),
+    "observe": WorkflowDispatchRule(required_params=("url",), handler=handle_observe),
+    "recon": WorkflowDispatchRule(required_params=("artifact_path",), handler=handle_recon),
+    "compare-auth": WorkflowDispatchRule(
+        required_params=("left_artifact_path", "right_artifact_path"),
+        handler=handle_compare_auth,
+    ),
+    "mobile-review": WorkflowDispatchRule(required_params=("target_path",), handler=handle_mobile_review),
+    "write-finding": WorkflowDispatchRule(
+        required_params=("title", "host", "endpoint", "artifacts", "observations"),
+        handler=handle_write_finding,
+    ),
+    "next-step": WorkflowDispatchRule(required_params=(), handler=handle_next_step),
+    "sessions": WorkflowDispatchRule(required_params=(), handler=handle_sessions),
+    "session-search": WorkflowDispatchRule(required_params=(), handler=handle_session_search),
+    "session-show": WorkflowDispatchRule(required_params=("session_id",), handler=handle_session_show),
+    "session-resume": WorkflowDispatchRule(required_params=("session_id",), handler=handle_session_resume),
+    "doctor": WorkflowDispatchRule(required_params=(), handler=handle_doctor),
+}
+
+
 def run_named_workflow(command_name: str, params: dict[str, Any]) -> dict[str, Any]:
     command = get_command(command_name)
     reject_unknown_params(command_name, params)
     workflow = command.workflow
-    if workflow == "registry":
-        return list_agents()
-    if workflow == "commands":
-        return {"commands": ecosystem_snapshot()["commands"]}
-    if workflow == "ecosystem":
-        return ecosystem_snapshot()
-    if workflow == "observe":
-        if "url" not in params:
-            raise typer.BadParameter("/observe-safe requires url=<value>")
-        return run_observe(
-            url=str(params["url"]),
-            method=str(params.get("method", "GET")),
-            headers=require_dict_param(params, "headers"),
-            execute=require_bool_param(params, "execute", True),
-        )
-    if workflow == "recon":
-        if "artifact_path" not in params:
-            raise typer.BadParameter("/recon requires artifact_path=<value>")
-        return run_recon(artifact_path=str(params["artifact_path"]))
-    if workflow == "compare-auth":
-        if "left_artifact_path" not in params or "right_artifact_path" not in params:
-            raise typer.BadParameter("/compare-auth requires left_artifact_path=<value> and right_artifact_path=<value>")
-        return run_compare_auth(
-            left_artifact_path=str(params["left_artifact_path"]),
-            right_artifact_path=str(params["right_artifact_path"]),
-        )
-    if workflow == "mobile-review":
-        if "target_path" not in params:
-            raise typer.BadParameter("/mobile-review requires target_path=<value>")
-        rules_path = params.get("rules_path")
-        return run_mobile_review(
-            target_path=str(params["target_path"]),
-            rules_path=str(rules_path) if rules_path is not None else None,
-        )
-    if workflow == "write-finding":
-        required = {"title", "host", "endpoint", "artifacts", "observations"}
-        missing = sorted(required - params.keys())
-        if missing:
-            raise typer.BadParameter(f"/write-finding missing required args: {', '.join(missing)}")
-        return run_write_finding(
-            title=str(params["title"]),
-            host=str(params["host"]),
-            endpoint=str(params["endpoint"]),
-            method=str(params.get("method", "GET")),
-            auth_context=str(params.get("auth_context", "unknown")),
-            classification=str(params.get("classification", "suspected")),
-            artifacts=require_string_list_param(params, "artifacts", required=True),
-            observations=require_string_list_param(params, "observations", required=True),
-            limitations=require_string_list_param(params, "limitations"),
-            remediation_notes=require_string_list_param(params, "remediation_notes"),
-            relative_output_path=str(params["relative_output_path"]) if "relative_output_path" in params else None,
-        )
-    if workflow == "next-step":
-        return next_step()
-    if workflow == "sessions":
-        return list_runtime_sessions()
-    if workflow == "session-show":
-        if "session_id" not in params:
-            raise typer.BadParameter("/session-show requires session_id=<value>")
-        return get_runtime_session(str(params["session_id"]))
-    if workflow == "doctor":
-        return ecosystem_doctor()
-    raise typer.BadParameter(f"Unsupported workflow mapping: {workflow}")
+    if workflow not in WORKFLOW_DISPATCH_TABLE:
+        raise typer.BadParameter(f"Unsupported workflow mapping: {workflow}")
+
+    rule = WORKFLOW_DISPATCH_TABLE[workflow]
+    missing = sorted(param for param in rule.required_params if param not in params)
+    if missing:
+        raise typer.BadParameter(f"{command_name} missing required args: {', '.join(missing)}")
+
+    return {
+        "run_manifest": build_run_manifest(command_name, params),
+        "result": rule.handler(params),
+    }
 
 
 @app.command("registry")
@@ -184,9 +296,24 @@ def sessions() -> None:
     emit(list_runtime_sessions())
 
 
+@app.command("session-search")
+def session_search(
+    query: str | None = typer.Option(None, help="Full-text query against stored session JSON."),
+    workflow: str | None = typer.Option(None, help="Workflow filter."),
+    status: str | None = typer.Option(None, help="Status filter."),
+    agent: str | None = typer.Option(None, help="Agent filter."),
+) -> None:
+    emit(search_runtime_sessions(query=query, workflow=workflow, status=status, agent=agent))
+
+
 @app.command("session-show")
 def session_show(session_id: str = typer.Option(..., help="Runtime session ID to inspect.")) -> None:
     emit(get_runtime_session(session_id))
+
+
+@app.command("session-resume")
+def session_resume(session_id: str = typer.Option(..., help="Runtime session ID to resume.")) -> None:
+    emit(handle_session_resume({"session_id": session_id}))
 
 
 @app.command("slash")
