@@ -16,6 +16,7 @@ RUNTIME_STATE_PATH = PROJECT_ROOT / "state" / "runtime_state.json"
 ECOSYSTEM_INDEX_PATH = PROJECT_ROOT / "state" / "ecosystem-index-v1.json"
 ECOSYSTEM_INDEX_SCHEMA_VERSION = 1
 SUPPORTED_COMMAND_WORKFLOWS = {
+    "analyze",
     "registry",
     "commands",
     "ecosystem",
