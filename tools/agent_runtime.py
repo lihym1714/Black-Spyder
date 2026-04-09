@@ -6,7 +6,7 @@ import re
 import time
 from collections import Counter
 from contextlib import contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -18,6 +18,7 @@ from mcp.response_diff import diff_observations
 from mcp.schema_extract import extract_schema
 from mcp.scope_guard import evaluate_scope
 from mcp.yara_scan import run_yara_scan
+from tools.ecosystem import load_agent_registry
 
 STATE_FILE = PROJECT_ROOT / "state" / "state.json"
 RUNTIME_STATE_FILE = PROJECT_ROOT / "state" / "runtime_state.json"
@@ -26,56 +27,6 @@ FINDING_TEMPLATE = PROJECT_ROOT / "templates" / "finding.md"
 AUTO_EXECUTE_METHODS = {"GET", "HEAD", "OPTIONS"}
 EVIDENCE_ROOTS = [PROJECT_ROOT / "evidence" / "normalized", PROJECT_ROOT / "evidence" / "raw"]
 ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts"
-
-
-@dataclass(frozen=True)
-class AgentSpec:
-    name: str
-    doc_path: str
-    purpose: str
-    workflows: list[str]
-    allowed_tools: list[str]
-
-
-AGENT_REGISTRY = {
-    "sec-orchestrator": AgentSpec(
-        name="sec-orchestrator",
-        doc_path="agents/sec-orchestrator.md",
-        purpose="Route safe next steps and coordinate evidence-first workflows.",
-        workflows=["route", "observe", "next-step"],
-        allowed_tools=["scope_guard", "http_probe", "response_diff", "schema_extract", "artifact_writer", "yara_scan"],
-    ),
-    "recon-reader": AgentSpec(
-        name="recon-reader",
-        doc_path="agents/recon-reader.md",
-        purpose="Summarize normalized observations without overstating hypotheses.",
-        workflows=["recon"],
-        allowed_tools=["schema_extract"],
-    ),
-    "auth-analyzer": AgentSpec(
-        name="auth-analyzer",
-        doc_path="agents/auth-analyzer.md",
-        purpose="Compare safe observations across contexts and keep results tentative.",
-        workflows=["compare-auth"],
-        allowed_tools=["response_diff"],
-    ),
-    "evidence-writer": AgentSpec(
-        name="evidence-writer",
-        doc_path="agents/evidence-writer.md",
-        purpose="Write reproducible findings from stored evidence.",
-        workflows=["write-finding"],
-        allowed_tools=["artifact_writer"],
-    ),
-    "mobile-app-analyzer": AgentSpec(
-        name="mobile-app-analyzer",
-        doc_path="agents/mobile-app-analyzer.md",
-        purpose="Review local mobile artifacts with file heuristics and optional YARA clues.",
-        workflows=["mobile-review"],
-        allowed_tools=["yara_scan"],
-    ),
-}
-
-
 def default_state_summary() -> dict[str, Any]:
     return {
         "created_at": utc_now_iso(),
@@ -272,9 +223,10 @@ def finish_session(state: dict[str, Any], session_id: str, result: dict[str, Any
 
 
 def list_agents() -> dict[str, Any]:
+    registry = load_agent_registry()
     return {
-        "agents": [asdict(spec) for spec in AGENT_REGISTRY.values()],
-        "count": len(AGENT_REGISTRY),
+        "agents": [asdict(spec) for spec in registry.values()],
+        "count": len(registry),
     }
 
 
@@ -289,6 +241,7 @@ def route_workflow(
     finding_title: str | None = None,
     target_path: str | None = None,
 ) -> dict[str, Any]:
+    registry = load_agent_registry()
     workflow = "route"
     agent_name = "sec-orchestrator"
     rationale = "Default to orchestrator until concrete evidence inputs identify a narrower workflow."
@@ -349,7 +302,7 @@ def route_workflow(
 
     return {
         "workflow": workflow,
-        "agent": asdict(AGENT_REGISTRY[agent_name]),
+        "agent": asdict(registry[agent_name]),
         "goal": goal,
         "rationale": rationale,
         "next_action": next_action,
