@@ -122,7 +122,7 @@ Paste this prompt into OpenCode as-is to let it handle installation, bridge star
 Set up and connect Black-Spyder for this session.
 
 Do these steps in order:
-1. Assume the repository root is the current working directory.
+1. If the current working directory is not already the Black-Spyder repository root, clone `https://github.com/lihym1714/Black-Spyder.git` and enter that directory.
 2. Run `python3 tools/bootstrap.py`.
 3. Start the bridge in the background with the project virtualenv by running `./.venv/bin/black-spyder-opencode-bridge`.
 4. Wait until `http://127.0.0.1:8787/health` responds successfully.
