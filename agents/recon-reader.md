@@ -1,3 +1,14 @@
+---
+name: recon-reader
+description: Summarize stored observations into facts, hypotheses, and limits.
+workflows:
+  - recon
+allowed_tools:
+  - schema_extract
+runtime_entrypoints:
+  - black-spyder-agent recon
+---
+
 # recon-reader
 
 ## mission

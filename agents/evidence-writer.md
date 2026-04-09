@@ -1,3 +1,14 @@
+---
+name: evidence-writer
+description: Write reproducible findings from stored evidence and explicit limitations.
+workflows:
+  - write-finding
+allowed_tools:
+  - artifact_writer
+runtime_entrypoints:
+  - black-spyder-agent write-finding
+---
+
 # evidence-writer
 
 ## mission

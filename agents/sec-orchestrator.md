@@ -1,3 +1,23 @@
+---
+name: sec-orchestrator
+description: Coordinate safe next-step planning and evidence-first workflow routing.
+workflows:
+  - route
+  - observe
+  - next-step
+allowed_tools:
+  - scope_guard
+  - http_probe
+  - response_diff
+  - schema_extract
+  - artifact_writer
+  - yara_scan
+runtime_entrypoints:
+  - black-spyder-agent route
+  - black-spyder-agent observe
+  - black-spyder-agent next-step
+---
+
 # sec-orchestrator
 
 ## mission

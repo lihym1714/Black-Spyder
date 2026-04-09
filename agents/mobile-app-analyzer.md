@@ -1,3 +1,14 @@
+---
+name: mobile-app-analyzer
+description: Review local mobile artifacts with safe file heuristics and optional YARA clues.
+workflows:
+  - mobile-review
+allowed_tools:
+  - yara_scan
+runtime_entrypoints:
+  - black-spyder-agent mobile-review
+---
+
 # mobile-app-analyzer
 
 ## mission

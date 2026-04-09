@@ -1,3 +1,14 @@
+---
+name: auth-analyzer
+description: Compare safe observations across contexts for authorization clues.
+workflows:
+  - compare-auth
+allowed_tools:
+  - response_diff
+runtime_entrypoints:
+  - black-spyder-agent compare-auth
+---
+
 # auth-analyzer
 
 ## mission
