@@ -9,6 +9,8 @@
 
 `Black-Spyder` helps an operator validate scope, capture one safe HTTP observation at a time, compare stored artifacts, extract response structure hints, and write reproducible findings. It is designed for operator-controlled defensive review and documentation, not offensive testing.
 
+<!-- Uploading "Black-Spyder.png"... -->
+
 ## Safety model
 
 - only explicitly authorized hosts from `policies/scope.yaml` are in scope
