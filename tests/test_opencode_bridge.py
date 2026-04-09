@@ -112,6 +112,18 @@ class OpenCodeBridgeTests(unittest.TestCase):
             },
         )
 
+    @patch("tools.opencode_bridge.run_named_workflow", return_value={"result": {"needs_clarification": True}})
+    def test_converse_routes_conversational_request(self, mock_run_named_workflow) -> None:
+        response = self.client.post(
+            "/converse",
+            json={"goal": "apk 분석해줘"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        mock_run_named_workflow.assert_called_once_with("/converse", {"goal": "apk 분석해줘"})
+
 
 if __name__ == "__main__":
     unittest.main()

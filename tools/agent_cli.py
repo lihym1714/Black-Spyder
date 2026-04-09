@@ -27,6 +27,7 @@ from tools.agent_runtime import (
     next_step,
     route_workflow,
     run_autonomous_analysis,
+    run_conversational_analysis,
     run_compare_auth,
     run_mobile_review,
     run_observe,
@@ -193,6 +194,10 @@ def handle_analyze(params: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def handle_converse(params: dict[str, Any]) -> dict[str, Any]:
+    return run_conversational_analysis(goal=str(params["goal"]))
+
+
 def handle_next_step(_: dict[str, Any]) -> dict[str, Any]:
     return next_step()
 
@@ -255,6 +260,7 @@ WORKFLOW_DISPATCH_TABLE: dict[str, WorkflowDispatchRule] = {
     ),
     "mobile-review": WorkflowDispatchRule(required_params=("target_path",), handler=handle_mobile_review),
     "analyze": WorkflowDispatchRule(required_params=("goal",), handler=handle_analyze),
+    "converse": WorkflowDispatchRule(required_params=("goal",), handler=handle_converse),
     "write-finding": WorkflowDispatchRule(
         required_params=("title", "host", "endpoint", "artifacts", "observations"),
         handler=handle_write_finding,
@@ -387,6 +393,11 @@ def analyze(
             rules_path=rules_path,
         )
     )
+
+
+@app.command("converse")
+def converse(goal: str = typer.Option(..., help="Natural-language analysis request.")) -> None:
+    emit(run_conversational_analysis(goal=goal))
 
 
 @app.command("observe")

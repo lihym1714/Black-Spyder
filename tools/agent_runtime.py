@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
+from os.path import expanduser
 
 from mcp.artifact_writer import write_artifact
 from mcp.common import PROJECT_ROOT, build_request_id, load_scope_policy, utc_now_iso, write_json
@@ -805,11 +806,103 @@ def run_autonomous_analysis(
         result = run_mobile_review(target_path=target_path, rules_path=rules_path)
 
     return {
+        "analysis_mode": "structured",
         "goal": goal,
         "route": route,
         "executed": result is not None,
         "result": result,
         "next_action": route["next_action"] if result is None else None,
+    }
+
+
+def extract_url_from_goal(goal: str) -> str | None:
+    match = re.search(r"https?://[^\s]+", goal)
+    return match.group(0) if match else None
+
+
+def extract_path_from_goal(goal: str) -> str | None:
+    match = re.search(r"(~?/[^\s]+|\./[^\s]+|/[^\s]+)", goal)
+    if not match:
+        return None
+    return expanduser(match.group(0))
+
+
+def goal_mentions_mobile(goal: str) -> bool:
+    lowered = goal.lower()
+    keywords = ["apk", "android", "ipa", "app 분석", "앱 분석", "mobile", "ios"]
+    return any(keyword in lowered for keyword in keywords)
+
+
+def run_conversational_analysis(goal: str) -> dict[str, Any]:
+    extracted_url = extract_url_from_goal(goal)
+    extracted_path = extract_path_from_goal(goal)
+
+    def as_conversation(result: dict[str, Any], extraction: dict[str, str]) -> dict[str, Any]:
+        return {
+            **result,
+            "analysis_mode": "conversation",
+            "conversation_extraction": extraction,
+        }
+
+    if goal_mentions_mobile(goal) and extracted_path is None:
+        return {
+            "analysis_mode": "conversation",
+            "goal": goal,
+            "executed": False,
+            "needs_clarification": True,
+            "clarification_question": "어떤 앱을 분석할까요? APK 파일 경로나 추출된 앱 디렉터리 경로를 알려주세요.",
+            "suggested_input": {
+                "target_path": "~/Downloads/example.apk 또는 추출된 앱 디렉터리 경로",
+            },
+        }
+
+    if extracted_path is not None and goal_mentions_mobile(goal):
+        candidate = Path(extracted_path).expanduser()
+        if not candidate.exists():
+            return {
+                "analysis_mode": "conversation",
+                "goal": goal,
+                "executed": False,
+                "needs_clarification": True,
+                "clarification_question": "분석할 APK나 추출된 앱 경로를 찾지 못했습니다. 실제 존재하는 경로를 알려주세요.",
+                "suggested_input": {
+                    "target_path": extracted_path,
+                },
+            }
+        try:
+            resolved_target = str(resolve_artifact_target_path(str(candidate)))
+        except (ValueError, FileNotFoundError):
+            return {
+                "analysis_mode": "conversation",
+                "goal": goal,
+                "executed": False,
+                "needs_clarification": True,
+                "clarification_question": "APK 분석은 현재 artifacts/ 아래의 로컬 파일 또는 추출 디렉터리를 기준으로 진행합니다. 분석할 앱 경로를 artifacts/ 아래로 준비해 알려주세요.",
+                "suggested_input": {
+                    "target_path": str(candidate),
+                },
+            }
+        return as_conversation(
+            run_autonomous_analysis(goal=goal, target_path=resolved_target),
+            {"target_path": resolved_target},
+        )
+
+    if extracted_url is not None:
+        return as_conversation(
+            run_autonomous_analysis(goal=goal, url=extracted_url),
+            {"url": extracted_url},
+        )
+
+    return {
+        "analysis_mode": "conversation",
+        "executed": False,
+        "needs_clarification": True,
+        "goal": goal,
+        "clarification_question": "분석할 대상이 필요합니다. URL이나 로컬 파일/디렉터리 경로를 알려주세요.",
+        "suggested_input": {
+            "url": "https://example.com",
+            "target_path": "~/Downloads/example.apk",
+        },
     }
 
 
