@@ -46,6 +46,13 @@
 - `forbidden_path_patterns`에 걸리는 경로는 `approved_path_exceptions`에 명시된 경우에만 예외 허용됩니다
 - 실제 실행은 `mcp/http_probe.py`로 한 번에 한 요청씩만 진행합니다
 
+### 실행형 에이전트 런타임
+
+- `tools/agent_runtime.py`는 markdown 에이전트 스펙과 실제 워크플로우를 연결하는 로컬 router/session 레이어입니다
+- `tools/agent_cli.py`는 `route`, `observe`, `recon`, `compare-auth`, `mobile-review`, `write-finding`, `next-step` 같은 운영자용 명령을 제공합니다
+- `black-spyder-agent`는 같은 런타임을 위한 설치형 콘솔 엔트리포인트입니다
+- `state/state.json`은 추적 가능한 템플릿으로만 유지하고, 로컬 런타임 요약과 세션은 gitignored `state/runtime_state.json`에 저장합니다
+
 ### 정책 시스템
 
 - `policies/scope.yaml`이 허용 호스트, 스킴, 메서드, 제한값의 단일 기준점입니다
@@ -105,6 +112,21 @@ python tools/dry_run.py
 ```
 
 dry run은 정책을 로드하고, 허용 호스트 및 메서드를 출력하고, 샘플 URL을 `scope_guard`로 검증하고, 필요 시 `state/state.json`을 초기화한 뒤, 실제 요청 없이 다음 안전한 작업을 제안합니다.
+
+### 에이전트 런타임 빠른 시작
+
+```bash
+black-spyder-agent registry
+black-spyder-agent route --url http://localhost:8000/health --method GET
+black-spyder-agent observe --url http://localhost:8000/health --plan-only
+black-spyder-agent recon --artifact-path evidence/normalized/example.json
+black-spyder-agent compare-auth --left-artifact-path evidence/normalized/left.json --right-artifact-path evidence/normalized/right.json
+black-spyder-agent mobile-review --target-path artifacts/mobile_app_extracted
+black-spyder-agent next-step
+```
+
+에이전트 런타임도 기본 MCP 도구와 동일한 안전 모델을 따릅니다. 즉, 정책 기반 관찰만 허용하고, 한 번에 한 단계씩 진행하며, 증거 없이 결론을 내리지 않습니다.
+추적 대상인 `state/state.json`은 깨끗한 템플릿으로 남겨 두고, 실제 런타임 요약과 세션 타임라인은 `state/runtime_state.json`에 기록하여 일반 실행만으로 저장소 상태 파일이 더러워지지 않게 했습니다.
 
 ### 도구 사용 예시
 

@@ -47,6 +47,13 @@
 - if a path matches `forbidden_path_patterns`, only an explicit `approved_path_exceptions` entry can override it
 - keep execution one request at a time through `mcp/http_probe.py`
 
+### executable agent runtime
+
+- `tools/agent_runtime.py` is the local router/session layer that pairs the markdown agent specs with runnable workflows
+- `tools/agent_cli.py` exposes operator-facing commands such as `route`, `observe`, `recon`, `compare-auth`, `mobile-review`, `write-finding`, and `next-step`
+- `black-spyder-agent` is the installed console entrypoint for the same runtime
+- `state/state.json` stays as a tracked template, while local runtime summaries and sessions live in gitignored `state/runtime_state.json`
+
 ### policy system
 
 - `policies/scope.yaml` is the source of truth for allowed hosts, schemes, methods, rate limits, and response caps
@@ -106,6 +113,21 @@ python tools/dry_run.py
 ```
 
 The dry run loads the policy, prints allowed hosts and methods, validates a sample URL with `scope_guard`, initializes `state/state.json` if needed, and prints the next recommended safe action without making a live request.
+
+### agent runtime quick start
+
+```bash
+black-spyder-agent registry
+black-spyder-agent route --url http://localhost:8000/health --method GET
+black-spyder-agent observe --url http://localhost:8000/health --plan-only
+black-spyder-agent recon --artifact-path evidence/normalized/example.json
+black-spyder-agent compare-auth --left-artifact-path evidence/normalized/left.json --right-artifact-path evidence/normalized/right.json
+black-spyder-agent mobile-review --target-path artifacts/mobile_app_extracted
+black-spyder-agent next-step
+```
+
+The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
+Tracked `state/state.json` remains a clean template, while local runtime summaries and session timelines are written to `state/runtime_state.json` so normal execution does not dirty the repository state file.
 
 ### tool usage examples
 
