@@ -772,6 +772,47 @@ def run_write_finding(
     return result
 
 
+def run_autonomous_analysis(
+    *,
+    goal: str,
+    url: str | None = None,
+    method: str = "GET",
+    artifact_path: str | None = None,
+    left_artifact_path: str | None = None,
+    right_artifact_path: str | None = None,
+    target_path: str | None = None,
+    rules_path: str | None = None,
+) -> dict[str, Any]:
+    route = route_workflow(
+        goal=goal,
+        url=url,
+        method=method,
+        artifact_path=artifact_path,
+        left_artifact_path=left_artifact_path,
+        right_artifact_path=right_artifact_path,
+        target_path=target_path,
+    )
+    workflow = route["workflow"]
+    result: dict[str, Any] | None = None
+
+    if workflow == "observe" and url is not None:
+        result = run_observe(url=url, method=method, execute=True)
+    elif workflow == "recon" and artifact_path is not None:
+        result = run_recon(artifact_path=artifact_path)
+    elif workflow == "compare-auth" and left_artifact_path is not None and right_artifact_path is not None:
+        result = run_compare_auth(left_artifact_path=left_artifact_path, right_artifact_path=right_artifact_path)
+    elif workflow == "mobile-review" and target_path is not None:
+        result = run_mobile_review(target_path=target_path, rules_path=rules_path)
+
+    return {
+        "goal": goal,
+        "route": route,
+        "executed": result is not None,
+        "result": result,
+        "next_action": route["next_action"] if result is None else None,
+    }
+
+
 def next_step() -> dict[str, Any]:
     state = load_runtime_state_snapshot()
     last_session_id = state.get("last_session_id")

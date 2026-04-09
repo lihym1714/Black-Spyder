@@ -56,6 +56,30 @@ class OpenCodeBridgeTests(unittest.TestCase):
         state = opencode_bridge.load_bridge_state()
         self.assertEqual(len(state["hosts"]), 1)
 
+    def test_connect_returns_host_and_registry(self) -> None:
+        response = self.client.post(
+            "/connect",
+            json={"host_name": "opencode-host", "host_version": "1.0.0", "capabilities": ["registry", "execute"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "connected")
+        self.assertEqual(payload["execute_route"], "/execute")
+        self.assertIn("registry", payload)
+        self.assertEqual(len(opencode_bridge.load_bridge_state()["hosts"]), 1)
+
+    def test_connect_reuses_existing_host_registration(self) -> None:
+        payload = {"host_name": "opencode-host", "host_version": "1.0.0", "capabilities": ["registry", "execute"]}
+
+        first = self.client.post("/connect", json=payload)
+        second = self.client.post("/connect", json=payload)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(len(opencode_bridge.load_bridge_state()["hosts"]), 1)
+
+
     @patch("tools.opencode_bridge.run_named_workflow", return_value={"result": {"status": "ok"}})
     def test_execute_routes_command_and_records_execution(self, mock_run_named_workflow) -> None:
         response = self.client.post(
@@ -68,6 +92,25 @@ class OpenCodeBridgeTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         mock_run_named_workflow.assert_called_once_with("/doctor", {})
         self.assertEqual(len(opencode_bridge.load_bridge_state()["executions"]), 1)
+
+    @patch("tools.opencode_bridge.run_named_workflow", return_value={"result": {"executed": True}})
+    def test_analyze_routes_prompt_level_request(self, mock_run_named_workflow) -> None:
+        response = self.client.post(
+            "/analyze",
+            json={"goal": "Review this target safely", "url": "http://localhost:8000/health"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        mock_run_named_workflow.assert_called_once_with(
+            "/analyze",
+            {
+                "goal": "Review this target safely",
+                "url": "http://localhost:8000/health",
+                "method": "GET",
+            },
+        )
 
 
 if __name__ == "__main__":

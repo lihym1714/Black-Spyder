@@ -26,6 +26,7 @@ from tools.agent_runtime import (
     list_agents,
     next_step,
     route_workflow,
+    run_autonomous_analysis,
     run_compare_auth,
     run_mobile_review,
     run_observe,
@@ -179,6 +180,19 @@ def handle_write_finding(params: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def handle_analyze(params: dict[str, Any]) -> dict[str, Any]:
+    return run_autonomous_analysis(
+        goal=str(params["goal"]),
+        url=str(params["url"]) if "url" in params else None,
+        method=str(params.get("method", "GET")),
+        artifact_path=str(params["artifact_path"]) if "artifact_path" in params else None,
+        left_artifact_path=str(params["left_artifact_path"]) if "left_artifact_path" in params else None,
+        right_artifact_path=str(params["right_artifact_path"]) if "right_artifact_path" in params else None,
+        target_path=str(params["target_path"]) if "target_path" in params else None,
+        rules_path=str(params["rules_path"]) if "rules_path" in params else None,
+    )
+
+
 def handle_next_step(_: dict[str, Any]) -> dict[str, Any]:
     return next_step()
 
@@ -240,6 +254,7 @@ WORKFLOW_DISPATCH_TABLE: dict[str, WorkflowDispatchRule] = {
         handler=handle_compare_auth,
     ),
     "mobile-review": WorkflowDispatchRule(required_params=("target_path",), handler=handle_mobile_review),
+    "analyze": WorkflowDispatchRule(required_params=("goal",), handler=handle_analyze),
     "write-finding": WorkflowDispatchRule(
         required_params=("title", "host", "endpoint", "artifacts", "observations"),
         handler=handle_write_finding,
@@ -345,6 +360,31 @@ def route(
             right_artifact_path=right_artifact_path,
             finding_title=finding_title,
             target_path=target_path,
+        )
+    )
+
+
+@app.command("analyze")
+def analyze(
+    goal: str = typer.Option(..., help="Natural-language analysis goal."),
+    url: str | None = typer.Option(None, help="Optional target URL."),
+    method: str = typer.Option("GET", help="Method to use when URL analysis is needed."),
+    artifact_path: str | None = typer.Option(None, help="Optional normalized artifact path."),
+    left_artifact_path: str | None = typer.Option(None, help="Optional left artifact path for comparison."),
+    right_artifact_path: str | None = typer.Option(None, help="Optional right artifact path for comparison."),
+    target_path: str | None = typer.Option(None, help="Optional local mobile artifact path."),
+    rules_path: str | None = typer.Option(None, help="Optional YARA rules path for mobile review."),
+) -> None:
+    emit(
+        run_autonomous_analysis(
+            goal=goal,
+            url=url,
+            method=method,
+            artifact_path=artifact_path,
+            left_artifact_path=left_artifact_path,
+            right_artifact_path=right_artifact_path,
+            target_path=target_path,
+            rules_path=rules_path,
         )
     )
 
