@@ -9,7 +9,7 @@
 
 `Black-Spyder` helps an operator validate scope, capture one safe HTTP observation at a time, compare stored artifacts, extract response structure hints, and write reproducible findings. It is designed for operator-controlled defensive review and documentation, not offensive testing.
 
-<!-- Uploading "Black-Spyder.png"... -->
+<img width="1024" height="1536" alt="Image" src="https://github.com/user-attachments/assets/43ce4cbc-efe6-420f-be92-8c68ef0646b1" />
 
 ## Safety model
 
