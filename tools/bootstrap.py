@@ -56,6 +56,7 @@ def install_guidance(os_name: str) -> dict[str, str]:
             "pip": "python3 -m ensurepip --upgrade",
             "git": "brew install git",
             "curl": "brew install curl",
+            "yara": "brew install yara",
         }
     if os_name == "Linux":
         if command_exists("apt-get"):
@@ -64,6 +65,7 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "pip": "sudo apt-get update && sudo apt-get install -y python3-pip",
                 "git": "sudo apt-get update && sudo apt-get install -y git",
                 "curl": "sudo apt-get update && sudo apt-get install -y curl",
+                "yara": "sudo apt-get update && sudo apt-get install -y yara",
             }
         if command_exists("dnf"):
             return {
@@ -71,6 +73,7 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "pip": "sudo dnf install -y python3-pip",
                 "git": "sudo dnf install -y git",
                 "curl": "sudo dnf install -y curl",
+                "yara": "sudo dnf install -y yara",
             }
         if command_exists("pacman"):
             return {
@@ -78,6 +81,7 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "pip": "sudo pacman -Sy --noconfirm python-pip",
                 "git": "sudo pacman -Sy --noconfirm git",
                 "curl": "sudo pacman -Sy --noconfirm curl",
+                "yara": "sudo pacman -Sy --noconfirm yara",
             }
     if os_name == "Windows":
         return {
@@ -85,8 +89,9 @@ def install_guidance(os_name: str) -> dict[str, str]:
             "pip": "py -m ensurepip --upgrade",
             "git": "winget install -e --id Git.Git",
             "curl": "curl ships with current Windows builds; if missing, install via winget or Git for Windows.",
+            "yara": "Install YARA manually or via your preferred Windows package manager.",
         }
-    return {name: f"Install {name} using your system package manager." for name in ["python3", "pip", "git", "curl"]}
+    return {name: f"Install {name} using your system package manager." for name in ["python3", "pip", "git", "curl", "yara"]}
 
 
 def attempt_install(command_name: str, os_name: str) -> str | None:
@@ -100,6 +105,7 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "pip": ["python3-pip"],
             "git": ["git"],
             "curl": ["curl"],
+            "yara": ["yara"],
         }[command_name]
         run_command(["sudo", "apt-get", "update"])
         run_command(["sudo", "apt-get", "install", "-y", *packages])
@@ -110,6 +116,7 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "pip": ["python3-pip"],
             "git": ["git"],
             "curl": ["curl"],
+            "yara": ["yara"],
         }[command_name]
         run_command(["sudo", "dnf", "install", "-y", *packages])
         return f"sudo dnf install -y {' '.join(packages)}"
@@ -119,6 +126,7 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "pip": ["python-pip"],
             "git": ["git"],
             "curl": ["curl"],
+            "yara": ["yara"],
         }[command_name]
         run_command(["sudo", "pacman", "-Sy", "--noconfirm", *packages])
         return f"sudo pacman -Sy --noconfirm {' '.join(packages)}"
@@ -167,6 +175,21 @@ def ensure_prerequisites(attempt_auto_install: bool) -> tuple[str, list[str], li
     return os_name, checked, sorted(set(missing))
 
 
+def report_optional_tools(os_name: str, attempt_auto_install: bool) -> None:
+    guidance = install_guidance(os_name)
+    optional_tools = ["yara"]
+    for command_name in optional_tools:
+        if command_exists(command_name):
+            print(f"- Optional tool available: {command_name}")
+            continue
+        if attempt_auto_install:
+            attempted = attempt_install(command_name, os_name)
+            if attempted and command_exists(command_name):
+                print(f"- Optional tool installed: {command_name} ({attempted})")
+                continue
+        print(f"- Optional tool missing: {command_name} ({guidance.get(command_name)})")
+
+
 def ensure_venv() -> Path:
     if not VENV_DIR.exists():
         run_command(["python3", "-m", "venv", str(VENV_DIR)])
@@ -200,6 +223,7 @@ def bootstrap(attempt_install_missing: bool = False) -> None:
     print("Setup summary:")
     print(f"- OS: {os_name}")
     print(f"- Checked commands: {', '.join(checked)}")
+    report_optional_tools(os_name, attempt_install_missing)
     print(f"- Virtual environment: {VENV_DIR}")
     print(f"- Requirements installed from: {REQUIREMENTS_FILE}")
     print("- Console entry point installed: black-spyder-bootstrap")
