@@ -29,6 +29,13 @@
 - `agents/evidence-writer.md` and `agents/evidence-writer.ko.md` explain reproducible finding generation
 - `agents/mobile-app-analyzer.md` and `agents/mobile-app-analyzer.ko.md` cover non-destructive mobile artifact analysis and backend-integration clue review
 
+### command catalog
+
+- `commands/*.md` stores slash-style command specs such as `/agents`, `/observe-safe`, `/recon`, `/compare-auth`, `/mobile-review`, `/write-finding`, `/sessions`, `/session-show`, `/next-step`, and `/doctor`
+- `black-spyder-agent commands` lists the available command catalog entries
+- `black-spyder-agent ecosystem` dumps the current agent catalog, command catalog, and core ecosystem paths in one machine-readable view
+- `black-spyder-agent slash ...` runs cataloged workflows through the local runtime
+
 ### MCP tools
 
 - `mcp/scope_guard.py` validates scheme, host, method, forbidden paths, and production-like targets
@@ -50,6 +57,7 @@
 ### executable agent runtime
 
 - `tools/agent_runtime.py` is the local router/session layer that pairs the markdown agent specs with runnable workflows
+- `tools/ecosystem.py` loads machine-readable agent metadata and slash-command catalog metadata from `agents/` and `commands/`
 - `tools/agent_cli.py` exposes operator-facing commands such as `route`, `observe`, `recon`, `compare-auth`, `mobile-review`, `write-finding`, and `next-step`
 - `black-spyder-agent` is the installed console entrypoint for the same runtime
 - `state/state.json` stays as a tracked template, while local runtime summaries and sessions live in gitignored `state/runtime_state.json`
@@ -58,7 +66,7 @@
 
 - `policies/scope.yaml` is the source of truth for allowed hosts, schemes, methods, rate limits, and response caps
 - `AGENTS.md` defines the global non-destructive operating rules
-- `state/state.json` stores local workflow state for dry-run initialization and operator continuity
+- `state/state.json` remains the tracked baseline template used for dry-run initialization, while live operator continuity lives in `state/runtime_state.json`
 
 ## Installation
 
@@ -118,11 +126,18 @@ The dry run loads the policy, prints allowed hosts and methods, validates a samp
 
 ```bash
 black-spyder-agent registry
+black-spyder-agent commands
+black-spyder-agent ecosystem
+black-spyder-agent doctor
+black-spyder-agent session-show --session-id session-1234abcd
 black-spyder-agent route --url http://localhost:8000/health --method GET
 black-spyder-agent observe --url http://localhost:8000/health --plan-only
 black-spyder-agent recon --artifact-path evidence/normalized/example.json
 black-spyder-agent compare-auth --left-artifact-path evidence/normalized/left.json --right-artifact-path evidence/normalized/right.json
 black-spyder-agent mobile-review --target-path artifacts/mobile_app_extracted
+black-spyder-agent slash /observe-safe url=http://localhost:8000/health method=GET execute=false
+black-spyder-agent sessions
+black-spyder-agent slash /session-show session_id=session-1234abcd
 black-spyder-agent next-step
 ```
 
