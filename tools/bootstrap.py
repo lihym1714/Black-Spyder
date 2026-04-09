@@ -21,6 +21,7 @@ REQUIRED_DIRS = [
     PROJECT_ROOT / "mcp",
     PROJECT_ROOT / "tools",
     PROJECT_ROOT / "agents",
+    PROJECT_ROOT / "commands",
 ]
 
 
@@ -226,9 +227,9 @@ def bootstrap(attempt_install_missing: bool = False) -> None:
     report_optional_tools(os_name, attempt_install_missing)
     print(f"- Virtual environment: {VENV_DIR}")
     print(f"- Requirements installed from: {REQUIREMENTS_FILE}")
-    print("- Console entry point installed: black-spyder-bootstrap")
+    print("- Console entry points installed: black-spyder-bootstrap, black-spyder-agent")
     print(f"- Policy file validated: {POLICY_FILE}")
-    print("- Workspace directories ensured: evidence/raw, evidence/normalized, findings, state")
+    print("- Workspace directories ensured: evidence/raw, evidence/normalized, findings, state, commands")
 
 
 def main() -> None:

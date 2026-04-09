@@ -3,9 +3,10 @@
 ## Repository layout
 - The active project now lives at repository root.
 - Agent prompts live in `agents/`.
+- Slash-style command specs live in `commands/`.
 - Scope and execution guardrails live in `policies/`.
 - Local tool implementations live in `mcp/`, and operator entrypoints live in `tools/`.
-- `evidence/raw/` and `evidence/normalized/` store observation artifacts, `findings/` stores reproducible outputs, and `state/state.json` tracks local workflow state.
+- `evidence/raw/` and `evidence/normalized/` store observation artifacts, `findings/` stores reproducible outputs, `state/state.json` remains the tracked template, and `state/runtime_state.json` stores local runtime sessions.
 
 ## Security Assessment Agent Rules
 
