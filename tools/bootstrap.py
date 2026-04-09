@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 import platform
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
+
+from tools.ecosystem import ecosystem_snapshot, ecosystem_doctor
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VENV_DIR = PROJECT_ROOT / ".venv"
@@ -220,6 +223,13 @@ def bootstrap(attempt_install_missing: bool = False) -> None:
         raise SystemExit(1)
 
     install_dependencies(venv_python)
+    ecosystem_snapshot()
+    doctor_report = ecosystem_doctor()
+    if doctor_report["status"] != "ok":
+        raise RuntimeError(
+            "Ecosystem doctor reported blocking issues after bootstrap:\n"
+            + json.dumps(doctor_report, indent=2)
+        )
 
     print("Setup summary:")
     print(f"- OS: {os_name}")
@@ -230,6 +240,8 @@ def bootstrap(attempt_install_missing: bool = False) -> None:
     print("- Console entry points installed: black-spyder-bootstrap, black-spyder-agent")
     print(f"- Policy file validated: {POLICY_FILE}")
     print("- Workspace directories ensured: evidence/raw, evidence/normalized, findings, state, commands")
+    print(f"- Ecosystem index generated: {PROJECT_ROOT / 'state' / 'ecosystem-index-v1.json'}")
+    print(f"- Doctor status: {doctor_report['status']} ({doctor_report['blocking_check_count']} blocking, {doctor_report['warning_check_count']} warning)")
 
 
 def main() -> None:
