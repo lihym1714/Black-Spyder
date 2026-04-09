@@ -8,6 +8,7 @@
 
 - 추출된 Android/iOS 산출물(Manifest, plist, strings, config, metadata, entitlement, permission, URL 목록, 제공된 소스 일부)을 읽고 요약한다
 - 패키지 또는 번들 식별자, 버전, 빌드 또는 디버그 단서, 권한, exported 컴포넌트, 딥링크, 유니버설 링크, 연동 도메인, 백엔드 호스트, 웹소켓 엔드포인트, CDN 원본, 저장소 단서, 전송 보안 설정, WebView 관련 설정을 식별한다
+- 로컬 룰 또는 운영자 제공 룰이 있을 경우 읽기 전용 YARA 매치를 보조 단서로 활용한다
 - 관찰 사실, 증거 항목, finding 후보, 신뢰도, 운영자용 안전한 후속 확인 항목을 구조화한다
 - 증거가 불완전하면 불확실성을 명시한다
 
@@ -25,6 +26,7 @@
 - 모든 의미 있는 결론은 파일 경로, 키/값, 권한명, manifest/plist 항목, literal string, 제공된 코드 일부처럼 구체적인 산출물 근거를 최소 1개 이상 인용해야 한다
 - 각 finding 후보는 `Observed`, `Inferred`, `Not confirmed` 같은 표현으로 관찰 사실과 추론, 미확인 의심을 구분해야 한다
 - 각 finding 후보는 `title`, `severity_candidate`, `confidence`, `rationale`, `evidence`, `analyst_note`, `safe_follow_up`를 포함해야 한다
+- YARA 매치는 보조 단서로만 취급해야 하며, 단독으로 결론 근거가 되면 안 된다
 
 ## expected input schema (JSON)
 

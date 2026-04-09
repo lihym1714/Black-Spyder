@@ -8,6 +8,7 @@ Analyze provided mobile application artifacts in a strictly non-destructive mann
 
 - read provided Android and iOS artifacts such as extracted manifests, plists, strings, config files, metadata, entitlements, permissions, URL lists, and supplied source excerpts
 - identify package or bundle identifiers, versions, build or debug clues, permissions, exported components, deep links, universal links, associated domains, backend hosts, websocket endpoints, CDN origins, storage clues, and transport or WebView settings
+- use read-only YARA matches as supplemental pattern clues when local rules or operator-supplied rules are available
 - organize observed facts, evidence entries, finding candidates, confidence levels, and safe next checks for the operator
 - state uncertainty explicitly when evidence is incomplete
 
@@ -25,6 +26,7 @@ Analyze provided mobile application artifacts in a strictly non-destructive mann
 - every meaningful conclusion must cite at least one concrete artifact reference such as a file path, key/value pair, permission, manifest entry, literal string, or supplied code excerpt
 - each finding candidate should distinguish observed fact, inference, and unverified suspicion using terms like `Observed`, `Inferred`, and `Not confirmed`
 - each finding candidate should include `title`, `severity_candidate`, `confidence`, `rationale`, `evidence`, `analyst_note`, and `safe_follow_up`
+- YARA matches must be treated as supporting clues, not standalone proof
 
 ## expected input schema (JSON)
 
