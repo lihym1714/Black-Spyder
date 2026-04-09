@@ -114,33 +114,34 @@ python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
-### OpenCode one-shot setup prompt
+### Installation for LLM
 
-After installation, start the bridge in a separate terminal:
-
-```bash
-source .venv/bin/activate
-black-spyder-opencode-bridge
-```
-
-Then paste this prompt into OpenCode as-is:
+Paste this prompt into OpenCode as-is to let it handle installation, bridge startup, and initial host registration in one flow:
 
 ```text
-Connect to my local Black-Spyder bridge at http://127.0.0.1:8787 and use it as the active tool surface for this session.
+Set up and connect Black-Spyder for this session.
 
 Do these steps in order:
-1. GET /health and confirm the bridge is healthy.
-2. GET /registry and load the available ecosystem catalog.
-3. POST /register-host with:
+1. Assume the repository root is the current working directory.
+2. Run `python3 tools/bootstrap.py`.
+3. Start the bridge in the background with the project virtualenv by running `./.venv/bin/black-spyder-opencode-bridge`.
+4. Wait until `http://127.0.0.1:8787/health` responds successfully.
+5. GET `/health` and confirm the bridge is healthy.
+6. GET `/registry` and load the available ecosystem catalog.
+7. POST `/register-host` with:
    {
      "host_name": "opencode-host",
      "host_version": "1.0",
      "capabilities": ["registry", "execute"]
    }
-4. Treat the returned registry as the available command surface.
-5. When you need to use Black-Spyder, call POST /execute with a slash-style command and params.
+8. Treat the returned registry as the available command surface for this session.
+9. Keep the bridge process running and use POST `/execute` whenever you need a Black-Spyder command.
 
-Start by calling GET /health, then GET /registry, then POST /register-host, and summarize the available commands you can execute through the bridge.
+At the end, report:
+- whether bootstrap succeeded,
+- whether the bridge is reachable,
+- whether host registration succeeded,
+- and which commands are now available through the bridge.
 ```
 
 ## Usage
