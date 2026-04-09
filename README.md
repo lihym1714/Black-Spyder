@@ -133,14 +133,15 @@ Do these steps in order:
       "capabilities": ["registry", "execute"]
    }
 6. Treat the returned registry as the available command surface for this session.
-7. When the user asks for analysis in natural language, prefer POST `/analyze` first.
-8. Use POST `/execute` only when you intentionally want a specific lower-level slash command.
+7. When the user asks in plain conversation, use POST `/converse` first.
+8. Use POST `/analyze` when the target is already structured as a URL or file path.
+9. Use POST `/execute` only when you intentionally want a specific lower-level slash command.
 
 At the end, report:
 - whether bootstrap succeeded,
 - whether the bridge is reachable,
 - whether `/connect` succeeded,
-- and confirm that prompt-first analysis should use `/analyze`.
+- and confirm that plain conversation should use `/converse` while structured inputs should use `/analyze`.
 ```
 
 ## Usage
@@ -163,7 +164,7 @@ black-spyder opencode up
 
 This starts the local OpenCode bridge on `127.0.0.1:8787` and prepares the default OpenCode host connection state.
 
-For the simplest prompt-first usage, let OpenCode call `/analyze` and only fall back to `/execute` when it needs a specific Black-Spyder slash command.
+For the simplest prompt-first usage, let OpenCode call `/converse` first and only use `/analyze` when it already extracted a concrete URL or file path.
 
 ```bash
 black-spyder-agent registry
@@ -186,6 +187,8 @@ black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
 black-spyder up
 black-spyder opencode up
+black-spyder converse --goal "웹 페이지 진단해줘 https://example.com"
+black-spyder converse --goal "apk 분석해줘"
 ```
 
 The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
@@ -201,9 +204,16 @@ Available endpoints:
 - `GET /health` returns bridge health plus the structured doctor report
 - `GET /registry` returns the machine-readable bridge manifest and ecosystem catalog
 - `POST /connect` performs host registration and returns the registry in one response
+- `POST /converse` accepts a plain conversational request, extracts likely inputs, and asks one follow-up question when needed
 - `POST /analyze` accepts a natural-language goal and lets Black-Spyder choose and run the safest matching workflow automatically
 - `POST /register-host` records a local host registration
 - `POST /execute` runs one slash-style command through the existing runtime
+
+### Conversation extraction layer vs structured analysis
+
+- Use `/converse` when the user just talks naturally, for example: `웹 페이지 진단해줘 https://example.com` or `apk 분석해줘`
+- Use `/analyze` when the host already knows the structured target, for example a concrete `url` or `target_path`
+- For APK-style prompts without a path, `/converse` now returns one clarification question asking which app or APK path to analyze
 
 ### tool usage examples
 

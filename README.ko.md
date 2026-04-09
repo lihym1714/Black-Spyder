@@ -132,14 +132,15 @@ Do these steps in order:
       "capabilities": ["registry", "execute"]
    }
 6. Treat the returned registry as the available command surface for this session.
-7. 사용자가 자연어로 분석을 요청하면 먼저 POST `/analyze`를 사용하십시오.
-8. 특정 lower-level slash command가 꼭 필요할 때만 POST `/execute`를 사용하십시오.
+7. 사용자가 그냥 대화하듯 요청하면 먼저 POST `/converse`를 사용하십시오.
+8. URL이나 파일 경로가 이미 구조화되어 있을 때만 POST `/analyze`를 사용하십시오.
+9. 특정 lower-level slash command가 꼭 필요할 때만 POST `/execute`를 사용하십시오.
 
 At the end, report:
 - whether bootstrap succeeded,
 - whether the bridge is reachable,
 - whether `/connect` succeeded,
-- and confirm that prompt-first analysis should use `/analyze`.
+- and confirm that plain conversation should use `/converse` while structured inputs should use `/analyze`.
 ```
 
 ## 사용 방법
@@ -162,7 +163,7 @@ black-spyder opencode up
 
 가장 짧고 직관적인 OpenCode용 명령으로 브리지를 실행하고 기본 연결 상태를 준비합니다.
 
-가장 단순한 prompt-first 사용 방식은 OpenCode가 먼저 `/analyze`를 호출하고, 꼭 필요한 경우에만 `/execute`로 세부 명령을 사용하는 것입니다.
+가장 단순한 prompt-first 사용 방식은 OpenCode가 먼저 `/converse`를 호출하고, URL이나 경로가 이미 정리된 경우에만 `/analyze`를 쓰는 것입니다.
 
 ```bash
 black-spyder-agent registry
@@ -185,6 +186,8 @@ black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
 black-spyder up
 black-spyder opencode up
+black-spyder converse --goal "웹 페이지 진단해줘 https://example.com"
+black-spyder converse --goal "apk 분석해줘"
 ```
 
 에이전트 런타임도 기본 MCP 도구와 동일한 안전 모델을 따릅니다. 즉, 정책 기반 관찰만 허용하고, 한 번에 한 단계씩 진행하며, 증거 없이 결론을 내리지 않습니다.
@@ -200,9 +203,16 @@ black-spyder opencode up
 - `GET /health` : 브리지 상태와 structured doctor 보고서 반환
 - `GET /registry` : machine-readable bridge manifest와 ecosystem catalog 반환
 - `POST /connect` : host registration과 registry 반환을 한 번에 처리
+- `POST /converse` : 일반 대화형 요청을 받아 입력을 추출하고, 필요하면 한 번 더 질문함
 - `POST /analyze` : 자연어 goal을 받아 가장 안전한 분석 경로를 자동 선택하고 실행
 - `POST /register-host` : 로컬 host registration 기록
 - `POST /execute` : 기존 runtime을 통해 slash-style 명령 1개 실행
+
+### Conversation extraction layer와 structured analysis 구분
+
+- `/converse`는 사용자가 그냥 말하는 경우에 씁니다. 예: `웹 페이지 진단해줘 https://example.com`, `apk 분석해줘`
+- `/analyze`는 host가 이미 `url`이나 `target_path`를 알고 있을 때 씁니다
+- APK 스타일 요청에서 경로가 없으면 `/converse`가 어떤 앱이나 APK 경로를 분석할지 한 번 더 물어봅니다
 
 ### 도구 사용 예시
 
