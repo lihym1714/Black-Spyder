@@ -114,6 +114,35 @@ python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
+### OpenCode one-shot setup prompt
+
+After installation, start the bridge in a separate terminal:
+
+```bash
+source .venv/bin/activate
+black-spyder-opencode-bridge
+```
+
+Then paste this prompt into OpenCode as-is:
+
+```text
+Connect to my local Black-Spyder bridge at http://127.0.0.1:8787 and use it as the active tool surface for this session.
+
+Do these steps in order:
+1. GET /health and confirm the bridge is healthy.
+2. GET /registry and load the available ecosystem catalog.
+3. POST /register-host with:
+   {
+     "host_name": "opencode-host",
+     "host_version": "1.0",
+     "capabilities": ["registry", "execute"]
+   }
+4. Treat the returned registry as the available command surface.
+5. When you need to use Black-Spyder, call POST /execute with a slash-style command and params.
+
+Start by calling GET /health, then GET /registry, then POST /register-host, and summarize the available commands you can execute through the bridge.
+```
+
 ## Usage
 
 ### dry run
