@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
+from tools.opencode_bridge import BridgeReuseError
 from tools.simple_entry import app
 
 
@@ -62,6 +63,62 @@ class SimpleEntryTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         payload = json.loads(result.stdout)
         self.assertIn("next_step", payload)
+
+    @patch(
+        "tools.simple_entry.connect_host",
+        return_value={
+            "status": "connected",
+            "host": {"host_name": "opencode-host"},
+            "registry": {"ecosystem": {"commands": [{"name": "/doctor"}]}, "default_preset": {"name": "opencode-conversation-first"}},
+        },
+    )
+    @patch(
+        "tools.simple_entry.ensure_bridge_available",
+        return_value={
+            "status": "reusing_existing_bridge",
+            "bridge_url": "http://127.0.0.1:8787",
+            "reused_existing_bridge": True,
+        },
+    )
+    @patch("tools.simple_entry.bridge_main")
+    def test_opencode_up_reuses_existing_bridge_without_starting_server(
+        self,
+        mock_bridge_main,
+        mock_ensure_bridge_available,
+        mock_connect,
+    ) -> None:
+        result = self.runner.invoke(app, ["opencode", "up"])
+
+        self.assertEqual(result.exit_code, 0)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["status"], "reusing_existing_bridge")
+        self.assertTrue(payload["reused_existing_bridge"])
+        mock_bridge_main.assert_not_called()
+
+    @patch(
+        "tools.simple_entry.connect_host",
+        return_value={
+            "status": "connected",
+            "host": {"host_name": "opencode-host"},
+            "registry": {"ecosystem": {"commands": [{"name": "/doctor"}]}, "default_preset": {"name": "opencode-conversation-first"}},
+        },
+    )
+    @patch(
+        "tools.simple_entry.ensure_bridge_available",
+        side_effect=BridgeReuseError("Port 8787 is already in use by a non-Black-Spyder service; cannot start the OpenCode bridge."),
+    )
+    @patch("tools.simple_entry.bridge_main")
+    def test_opencode_up_reports_clear_error_for_non_bridge_port_owner(
+        self,
+        mock_bridge_main,
+        mock_ensure_bridge_available,
+        mock_connect,
+    ) -> None:
+        result = self.runner.invoke(app, ["opencode", "up"])
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("Port 8787 is already in use", result.stderr)
+        mock_bridge_main.assert_not_called()
 
     @patch(
         "tools.agent_runtime.run_autonomous_analysis",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -83,6 +84,86 @@ class OpenCodeBridgeTests(unittest.TestCase):
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(len(opencode_bridge.load_bridge_state()["hosts"]), 1)
+
+    @patch("tools.opencode_bridge.probe_existing_bridge", return_value=True)
+    def test_ensure_bridge_available_reuses_healthy_existing_bridge(self, mock_probe_existing_bridge) -> None:
+        result = opencode_bridge.ensure_bridge_available()
+
+        self.assertEqual(result["status"], "reusing_existing_bridge")
+        self.assertTrue(result["reused_existing_bridge"])
+
+    @patch("tools.opencode_bridge.probe_existing_bridge", return_value=False)
+    @patch("tools.opencode_bridge.is_bridge_port_open", return_value=False)
+    def test_ensure_bridge_available_starts_when_port_is_free(self, mock_port_open, mock_probe_existing_bridge) -> None:
+        result = opencode_bridge.ensure_bridge_available()
+
+        self.assertEqual(result["status"], "starting")
+        self.assertFalse(result["reused_existing_bridge"])
+
+    @patch("tools.opencode_bridge.probe_existing_bridge", return_value=False)
+    @patch("tools.opencode_bridge.is_bridge_port_open", return_value=True)
+    def test_ensure_bridge_available_raises_for_foreign_service_on_bridge_port(
+        self,
+        mock_port_open,
+        mock_probe_existing_bridge,
+    ) -> None:
+        with self.assertRaises(opencode_bridge.BridgeReuseError):
+            opencode_bridge.ensure_bridge_available()
+
+    @patch("tools.opencode_bridge.httpx.Client")
+    def test_probe_existing_bridge_accepts_legacy_bridge_responses(self, mock_client_class) -> None:
+        class FakeResponse:
+            def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+                self.status_code = status_code
+                self._payload = payload
+
+            def json(self) -> dict[str, Any]:
+                return self._payload
+
+        class FakeClient:
+            def __enter__(self) -> "FakeClient":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def get(self, url: str) -> FakeResponse:
+                if url.endswith("/health"):
+                    return FakeResponse(200, {"status": "ok", "bridge_manifest_present": True})
+                return FakeResponse(200, {"bridge_name": "black-spyder-opencode-bridge"})
+
+        mock_client_class.return_value = FakeClient()
+
+        self.assertTrue(opencode_bridge.probe_existing_bridge())
+        _, kwargs = mock_client_class.call_args
+        self.assertFalse(kwargs["trust_env"])
+        self.assertFalse(kwargs["follow_redirects"])
+
+    @patch("tools.opencode_bridge.httpx.Client")
+    def test_probe_existing_bridge_rejects_unhealthy_enveloped_bridge(self, mock_client_class) -> None:
+        class FakeResponse:
+            def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+                self.status_code = status_code
+                self._payload = payload
+
+            def json(self) -> dict[str, Any]:
+                return self._payload
+
+        class FakeClient:
+            def __enter__(self) -> "FakeClient":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+            def get(self, url: str) -> FakeResponse:
+                if url.endswith("/health"):
+                    return FakeResponse(200, {"envelope_version": opencode_bridge.BRIDGE_ENVELOPE_VERSION, "status": "warning"})
+                return FakeResponse(200, {"envelope_version": opencode_bridge.BRIDGE_ENVELOPE_VERSION, "payload": {"bridge_name": "black-spyder-opencode-bridge"}})
+
+        mock_client_class.return_value = FakeClient()
+
+        self.assertFalse(opencode_bridge.probe_existing_bridge())
 
 
     @patch("tools.opencode_bridge.run_named_workflow", return_value={"result": {"status": "ok"}})

@@ -6,7 +6,15 @@ from collections.abc import Mapping
 import typer
 
 from tools.ecosystem import ecosystem_doctor, ecosystem_snapshot
-from tools.opencode_bridge import BRIDGE_HOST, BRIDGE_PORT, HostRegistrationRequest, connect_host, main as bridge_main
+from tools.opencode_bridge import (
+    BRIDGE_HOST,
+    BRIDGE_PORT,
+    BridgeReuseError,
+    HostRegistrationRequest,
+    connect_host,
+    ensure_bridge_available,
+    main as bridge_main,
+)
 from tools.agent_runtime import run_autonomous_analysis, run_conversational_analysis
 
 app = typer.Typer(add_completion=False, help="Simplified Black-Spyder entrypoint.")
@@ -46,15 +54,24 @@ def converse(goal: str = typer.Option(..., help="Conversational natural-language
 
 @app.command("up")
 def up(dry_run: bool = typer.Option(False, "--dry-run", help="Show the bridge target without starting it.")) -> None:
+    bridge_url = f"http://{BRIDGE_HOST}:{BRIDGE_PORT}"
     summary = {
         "status": "ready" if dry_run else "starting",
-        "bridge_url": f"http://{BRIDGE_HOST}:{BRIDGE_PORT}",
+        "bridge_url": bridge_url,
         "command_count": len(ecosystem_snapshot()["commands"]),
     }
     if dry_run:
         emit(summary)
         return
+    try:
+        bridge_status = ensure_bridge_available()
+    except BridgeReuseError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    summary.update(bridge_status)
     typer.echo(json.dumps(summary, indent=2))
+    if bridge_status["reused_existing_bridge"]:
+        return
     bridge_main()
 
 
@@ -64,6 +81,7 @@ def opencode_up(
     host_name: str = typer.Option("opencode-host", help="Host name to record for the connection."),
     host_version: str = typer.Option("1.0", help="Host version to record for the connection."),
 ) -> None:
+    bridge_url = f"http://{BRIDGE_HOST}:{BRIDGE_PORT}"
     connected = connect_host(
         HostRegistrationRequest(
             host_name=host_name,
@@ -74,7 +92,7 @@ def opencode_up(
     summary = {
         "status": connected["status"],
         "open_code_primary": True,
-        "bridge_url": f"http://{BRIDGE_HOST}:{BRIDGE_PORT}",
+        "bridge_url": bridge_url,
         "host": connected["host"],
         "command_count": len(connected["registry"]["ecosystem"]["commands"]),
         "next_step": "POST /converse first for conversation-style prompts; use /analyze for already structured analysis and /execute only for low-level commands.",
@@ -83,7 +101,15 @@ def opencode_up(
     if dry_run:
         emit(summary)
         return
+    try:
+        bridge_status = ensure_bridge_available()
+    except BridgeReuseError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    summary.update(bridge_status)
     typer.echo(json.dumps(summary, indent=2))
+    if bridge_status["reused_existing_bridge"]:
+        return
     bridge_main()
 
 
