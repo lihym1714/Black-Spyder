@@ -55,13 +55,17 @@ def run_command(command: list[str], *, check: bool = True) -> subprocess.Complet
 
 def install_guidance(os_name: str) -> dict[str, str]:
     if os_name == "macOS":
-        return {
-            "python3": "brew install python",
-            "pip": "python3 -m ensurepip --upgrade",
-            "git": "brew install git",
-            "curl": "brew install curl",
-            "yara": "brew install yara",
-        }
+            return {
+                "python3": "brew install python",
+                "pip": "python3 -m ensurepip --upgrade",
+                "git": "brew install git",
+                "curl": "brew install curl",
+                "yara": "brew install yara",
+                "adb": "brew install android-platform-tools",
+                "jadx": "brew install jadx",
+                "apktool": "brew install apktool",
+                "aapt": "Install Android build-tools and ensure aapt/aapt2 is on PATH.",
+            }
     if os_name == "Linux":
         if command_exists("apt-get"):
             return {
@@ -70,6 +74,10 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "git": "sudo apt-get update && sudo apt-get install -y git",
                 "curl": "sudo apt-get update && sudo apt-get install -y curl",
                 "yara": "sudo apt-get update && sudo apt-get install -y yara",
+                "adb": "sudo apt-get update && sudo apt-get install -y adb",
+                "jadx": "Install jadx manually or via your preferred package source.",
+                "apktool": "sudo apt-get update && sudo apt-get install -y apktool",
+                "aapt": "Install Android build-tools and ensure aapt/aapt2 is on PATH.",
             }
         if command_exists("dnf"):
             return {
@@ -78,6 +86,10 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "git": "sudo dnf install -y git",
                 "curl": "sudo dnf install -y curl",
                 "yara": "sudo dnf install -y yara",
+                "adb": "sudo dnf install -y android-tools",
+                "jadx": "Install jadx manually or via your preferred package source.",
+                "apktool": "sudo dnf install -y apktool",
+                "aapt": "Install Android build-tools and ensure aapt/aapt2 is on PATH.",
             }
         if command_exists("pacman"):
             return {
@@ -86,6 +98,10 @@ def install_guidance(os_name: str) -> dict[str, str]:
                 "git": "sudo pacman -Sy --noconfirm git",
                 "curl": "sudo pacman -Sy --noconfirm curl",
                 "yara": "sudo pacman -Sy --noconfirm yara",
+                "adb": "sudo pacman -Sy --noconfirm android-tools",
+                "jadx": "sudo pacman -Sy --noconfirm jadx",
+                "apktool": "sudo pacman -Sy --noconfirm apktool",
+                "aapt": "Install Android build-tools and ensure aapt/aapt2 is on PATH.",
             }
     if os_name == "Windows":
         return {
@@ -94,13 +110,29 @@ def install_guidance(os_name: str) -> dict[str, str]:
             "git": "winget install -e --id Git.Git",
             "curl": "curl ships with current Windows builds; if missing, install via winget or Git for Windows.",
             "yara": "Install YARA manually or via your preferred Windows package manager.",
+            "adb": "Install Android SDK Platform Tools and add adb to PATH.",
+            "jadx": "Install JADX manually and add it to PATH.",
+            "apktool": "Install apktool manually and add it to PATH.",
+            "aapt": "Install Android build-tools and add aapt/aapt2 to PATH.",
         }
-    return {name: f"Install {name} using your system package manager." for name in ["python3", "pip", "git", "curl", "yara"]}
+    return {name: f"Install {name} using your system package manager." for name in ["python3", "pip", "git", "curl", "yara", "adb", "jadx", "apktool", "aapt"]}
 
 
 def attempt_install(command_name: str, os_name: str) -> str | None:
     if os_name == "macOS" and command_exists("brew"):
-        package = "python" if command_name in {"python3", "pip"} else command_name
+        brew_packages = {
+            "python3": "python",
+            "pip": "python",
+            "git": "git",
+            "curl": "curl",
+            "yara": "yara",
+            "adb": "android-platform-tools",
+            "jadx": "jadx",
+            "apktool": "apktool",
+        }
+        package = brew_packages.get(command_name)
+        if package is None:
+            return None
         run_command(["brew", "install", package])
         return f"brew install {package}"
     if os_name == "Linux" and command_exists("apt-get"):
@@ -110,7 +142,11 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "git": ["git"],
             "curl": ["curl"],
             "yara": ["yara"],
-        }[command_name]
+            "adb": ["adb"],
+            "apktool": ["apktool"],
+        }.get(command_name)
+        if packages is None:
+            return None
         run_command(["sudo", "apt-get", "update"])
         run_command(["sudo", "apt-get", "install", "-y", *packages])
         return f"sudo apt-get update && sudo apt-get install -y {' '.join(packages)}"
@@ -121,7 +157,11 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "git": ["git"],
             "curl": ["curl"],
             "yara": ["yara"],
-        }[command_name]
+            "adb": ["android-tools"],
+            "apktool": ["apktool"],
+        }.get(command_name)
+        if packages is None:
+            return None
         run_command(["sudo", "dnf", "install", "-y", *packages])
         return f"sudo dnf install -y {' '.join(packages)}"
     if os_name == "Linux" and command_exists("pacman"):
@@ -131,13 +171,19 @@ def attempt_install(command_name: str, os_name: str) -> str | None:
             "git": ["git"],
             "curl": ["curl"],
             "yara": ["yara"],
-        }[command_name]
+            "adb": ["android-tools"],
+            "jadx": ["jadx"],
+            "apktool": ["apktool"],
+        }.get(command_name)
+        if packages is None:
+            return None
         run_command(["sudo", "pacman", "-Sy", "--noconfirm", *packages])
         return f"sudo pacman -Sy --noconfirm {' '.join(packages)}"
     if os_name == "Windows" and command_exists("winget"):
         packages = {
             "python3": ["winget", "install", "-e", "--id", "Python.Python.3.12"],
             "git": ["winget", "install", "-e", "--id", "Git.Git"],
+            "adb": ["winget", "install", "-e", "--id", "Google.PlatformTools"],
         }
         if command_name in packages:
             run_command(packages[command_name])
@@ -181,7 +227,7 @@ def ensure_prerequisites(attempt_auto_install: bool) -> tuple[str, list[str], li
 
 def report_optional_tools(os_name: str, attempt_auto_install: bool) -> None:
     guidance = install_guidance(os_name)
-    optional_tools = ["yara"]
+    optional_tools = ["yara", "adb", "jadx", "apktool", "aapt"]
     for command_name in optional_tools:
         if command_exists(command_name):
             print(f"- Optional tool available: {command_name}")
