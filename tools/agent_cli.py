@@ -29,7 +29,9 @@ from tools.agent_runtime import (
     run_autonomous_analysis,
     run_conversational_analysis,
     run_compare_auth,
+    run_mobile_decompile,
     run_mobile_review,
+    run_mobile_verify,
     run_observe,
     run_recon,
     run_write_finding,
@@ -165,6 +167,17 @@ def handle_mobile_review(params: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def handle_mobile_decompile(params: dict[str, Any]) -> dict[str, Any]:
+    return run_mobile_decompile(apk_path=str(params["apk_path"]))
+
+
+def handle_mobile_verify(params: dict[str, Any]) -> dict[str, Any]:
+    return run_mobile_verify(
+        package_name=str(params["package_name"]),
+        device_id=str(params["device_id"]) if "device_id" in params else None,
+    )
+
+
 def handle_write_finding(params: dict[str, Any]) -> dict[str, Any]:
     return run_write_finding(
         title=str(params["title"]),
@@ -191,6 +204,9 @@ def handle_analyze(params: dict[str, Any]) -> dict[str, Any]:
         right_artifact_path=str(params["right_artifact_path"]) if "right_artifact_path" in params else None,
         target_path=str(params["target_path"]) if "target_path" in params else None,
         rules_path=str(params["rules_path"]) if "rules_path" in params else None,
+        apk_path=str(params["apk_path"]) if "apk_path" in params else None,
+        package_name=str(params["package_name"]) if "package_name" in params else None,
+        device_id=str(params["device_id"]) if "device_id" in params else None,
     )
 
 
@@ -259,6 +275,8 @@ WORKFLOW_DISPATCH_TABLE: dict[str, WorkflowDispatchRule] = {
         handler=handle_compare_auth,
     ),
     "mobile-review": WorkflowDispatchRule(required_params=("target_path",), handler=handle_mobile_review),
+    "mobile-decompile": WorkflowDispatchRule(required_params=("apk_path",), handler=handle_mobile_decompile),
+    "mobile-verify": WorkflowDispatchRule(required_params=("package_name",), handler=handle_mobile_verify),
     "analyze": WorkflowDispatchRule(required_params=("goal",), handler=handle_analyze),
     "converse": WorkflowDispatchRule(required_params=("goal",), handler=handle_converse),
     "write-finding": WorkflowDispatchRule(
@@ -355,6 +373,8 @@ def route(
     right_artifact_path: str | None = typer.Option(None, help="Right normalized artifact path for comparison workflows."),
     finding_title: str | None = typer.Option(None, help="Finding title when you want evidence-writer routing."),
     target_path: str | None = typer.Option(None, help="Local mobile artifact directory for mobile review routing."),
+    apk_path: str | None = typer.Option(None, help="Local APK path for decompile routing."),
+    package_name: str | None = typer.Option(None, help="Android package name for dynamic verification routing."),
 ) -> None:
     emit(
         route_workflow(
@@ -366,6 +386,8 @@ def route(
             right_artifact_path=right_artifact_path,
             finding_title=finding_title,
             target_path=target_path,
+            apk_path=apk_path,
+            package_name=package_name,
         )
     )
 
@@ -380,6 +402,9 @@ def analyze(
     right_artifact_path: str | None = typer.Option(None, help="Optional right artifact path for comparison."),
     target_path: str | None = typer.Option(None, help="Optional local mobile artifact path."),
     rules_path: str | None = typer.Option(None, help="Optional YARA rules path for mobile review."),
+    apk_path: str | None = typer.Option(None, help="Optional local APK path for decompile."),
+    package_name: str | None = typer.Option(None, help="Optional package name for dynamic verification."),
+    device_id: str | None = typer.Option(None, help="Optional adb device serial for dynamic verification."),
 ) -> None:
     emit(
         run_autonomous_analysis(
@@ -391,6 +416,9 @@ def analyze(
             right_artifact_path=right_artifact_path,
             target_path=target_path,
             rules_path=rules_path,
+            apk_path=apk_path,
+            package_name=package_name,
+            device_id=device_id,
         )
     )
 
@@ -430,6 +458,19 @@ def mobile_review(
     rules_path: str | None = typer.Option(None, help="Optional YARA rules file path."),
 ) -> None:
     emit(run_mobile_review(target_path=target_path, rules_path=rules_path))
+
+
+@app.command("mobile-decompile")
+def mobile_decompile(apk_path: str = typer.Option(..., help="Local APK path under artifacts/.")) -> None:
+    emit(run_mobile_decompile(apk_path=apk_path))
+
+
+@app.command("mobile-verify")
+def mobile_verify(
+    package_name: str = typer.Option(..., help="Android package name to verify via adb."),
+    device_id: str | None = typer.Option(None, help="Optional adb device serial."),
+) -> None:
+    emit(run_mobile_verify(package_name=package_name, device_id=device_id))
 
 
 @app.command("write-finding")

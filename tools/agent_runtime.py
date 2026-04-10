@@ -13,8 +13,10 @@ from urllib.parse import urlparse
 from os.path import expanduser
 
 from mcp.artifact_writer import write_artifact
+from mcp.apk_decompile import run_apk_decompile
 from mcp.common import PROJECT_ROOT, build_request_id, load_scope_policy, utc_now_iso, write_json
 from mcp.http_probe import perform_probe
+from mcp.mobile_dynamic_verify import run_mobile_dynamic_verify
 from mcp.response_diff import diff_observations
 from mcp.schema_extract import extract_schema
 from mcp.scope_guard import evaluate_scope
@@ -250,8 +252,21 @@ def select_route_rule(
     right_artifact_path: str | None,
     finding_title: str | None,
     target_path: str | None,
+    apk_path: str | None,
+    package_name: str | None,
 ) -> tuple[RouteRule, dict[str, Any]]:
     ordered_rules: list[tuple[bool, RouteRule, dict[str, Any]]] = [
+        (
+            bool(apk_path),
+            RouteRule(
+                workflow="mobile-decompile",
+                agent_name="mobile-decompiler",
+                rationale="A local APK is present, so decompilation should establish reproducible evidence before deeper review.",
+                tool="apk_decompile",
+                reason="Capture source/resource evidence from the APK before static or dynamic follow-up.",
+            ),
+            {"apk_path": apk_path},
+        ),
         (
             bool(target_path),
             RouteRule(
@@ -262,6 +277,17 @@ def select_route_rule(
                 reason="Use read-only local pattern matching to gather non-destructive clues first.",
             ),
             {"target_path": target_path},
+        ),
+        (
+            bool(package_name),
+            RouteRule(
+                workflow="mobile-verify",
+                agent_name="mobile-dynamic-verifier",
+                rationale="A package name is available, so adb-based runtime verification can confirm installed-state evidence safely.",
+                tool="mobile_dynamic_verify",
+                reason="Collect runtime package evidence from a connected device or emulator without mutating the app.",
+            ),
+            {"package_name": package_name},
         ),
         (
             bool(left_artifact_path and right_artifact_path),
@@ -335,6 +361,8 @@ def route_workflow(
     right_artifact_path: str | None = None,
     finding_title: str | None = None,
     target_path: str | None = None,
+    apk_path: str | None = None,
+    package_name: str | None = None,
 ) -> dict[str, Any]:
     registry = load_agent_registry()
     route_rule, route_input = select_route_rule(
@@ -345,6 +373,8 @@ def route_workflow(
         right_artifact_path=right_artifact_path,
         finding_title=finding_title,
         target_path=target_path,
+        apk_path=apk_path,
+        package_name=package_name,
     )
 
     return {
@@ -623,6 +653,62 @@ def run_mobile_review(target_path: str, rules_path: str | None = None) -> dict[s
     return result
 
 
+def run_mobile_decompile(apk_path: str) -> dict[str, Any]:
+    apk_file = resolve_artifact_target_path(apk_path)
+    state, session = start_session(
+        "mobile-decompile",
+        "mobile-decompiler",
+        {"apk_path": relative_path(apk_file)},
+    )
+    update_state_summary(current_target=relative_path(apk_file))
+    decompile_result = run_apk_decompile(relative_path(apk_file))
+    append_event(state, session["session_id"], "apk-decompile", decompile_result)
+
+    result = {
+        "agent": "mobile-decompiler",
+        "apk_path": relative_path(apk_file),
+        "package_metadata": decompile_result["package_metadata"],
+        "archive_summary": decompile_result["archive_summary"],
+        "decompiled_outputs": decompile_result["decompiled_outputs"],
+        "artifacts": list(decompile_result["artifact_paths"].values()),
+        "limitations": decompile_result["limitations"],
+        "next_action": {
+            "tool": "mobile-review",
+            "reason": "Review the generated decompile outputs or extracted artifacts before drafting findings.",
+            "input": {"target_path": next(iter(decompile_result["decompiled_outputs"].values()), relative_path(apk_file))},
+        },
+    }
+    decompile_artifacts = list(decompile_result["artifact_paths"].values())
+    update_state_summary(observations=decompile_artifacts)
+    finish_session(state, session["session_id"], result)
+    return result
+
+
+def run_mobile_verify(package_name: str, device_id: str | None = None) -> dict[str, Any]:
+    state, session = start_session(
+        "mobile-verify",
+        "mobile-dynamic-verifier",
+        {"package_name": package_name, "device_id": device_id},
+    )
+    verify_result = run_mobile_dynamic_verify(package_name=package_name, device_id=device_id)
+    append_event(state, session["session_id"], "mobile-verify", verify_result)
+
+    result = {
+        "agent": "mobile-dynamic-verifier",
+        "package_name": package_name,
+        "selected_device": verify_result["selected_device"],
+        "installed": verify_result["installed"],
+        "runtime_state": verify_result.get("runtime_state"),
+        "device_profile": verify_result.get("device_profile"),
+        "artifacts": list(verify_result["artifact_paths"].values()),
+        "limitations": verify_result["limitations"],
+    }
+    verify_artifacts = list(verify_result["artifact_paths"].values())
+    update_state_summary(observations=verify_artifacts)
+    finish_session(state, session["session_id"], result)
+    return result
+
+
 def slugify(value: str) -> str:
     lowered = value.strip().lower()
     lowered = re.sub(r"[^a-z0-9]+", "-", lowered)
@@ -828,6 +914,9 @@ def run_autonomous_analysis(
     right_artifact_path: str | None = None,
     target_path: str | None = None,
     rules_path: str | None = None,
+    apk_path: str | None = None,
+    package_name: str | None = None,
+    device_id: str | None = None,
 ) -> dict[str, Any]:
     route = route_workflow(
         goal=goal,
@@ -837,6 +926,8 @@ def run_autonomous_analysis(
         left_artifact_path=left_artifact_path,
         right_artifact_path=right_artifact_path,
         target_path=target_path,
+        apk_path=apk_path,
+        package_name=package_name,
     )
     workflow = route["workflow"]
     result: dict[str, Any] | None = None
@@ -849,6 +940,10 @@ def run_autonomous_analysis(
         result = run_compare_auth(left_artifact_path=left_artifact_path, right_artifact_path=right_artifact_path)
     elif workflow == "mobile-review" and target_path is not None:
         result = run_mobile_review(target_path=target_path, rules_path=rules_path)
+    elif workflow == "mobile-decompile" and apk_path is not None:
+        result = run_mobile_decompile(apk_path=apk_path)
+    elif workflow == "mobile-verify" and package_name is not None:
+        result = run_mobile_verify(package_name=package_name, device_id=device_id)
 
     return build_analysis_envelope(
         analysis_mode="structured",
@@ -872,15 +967,29 @@ def extract_path_from_goal(goal: str) -> str | None:
     return expanduser(match.group(0))
 
 
+def extract_package_name_from_goal(goal: str) -> str | None:
+    match = re.search(r"\b[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+){2,}\b", goal)
+    if not match:
+        return None
+    return match.group(0)
+
+
 def goal_mentions_mobile(goal: str) -> bool:
     lowered = goal.lower()
     keywords = ["apk", "android", "ipa", "app 분석", "앱 분석", "mobile", "ios"]
     return any(keyword in lowered for keyword in keywords)
 
 
+def goal_mentions_mobile_verify(goal: str) -> bool:
+    lowered = goal.lower()
+    keywords = ["패키지", "package", "adb", "동적", "dynamic", "verify", "검증"]
+    return any(keyword in lowered for keyword in keywords)
+
+
 def run_conversational_analysis(goal: str) -> dict[str, Any]:
     extracted_url = extract_url_from_goal(goal)
     extracted_path = extract_path_from_goal(goal)
+    extracted_package_name = extract_package_name_from_goal(goal)
 
     def as_conversation(result: dict[str, Any], extraction: dict[str, str]) -> dict[str, Any]:
         return build_analysis_envelope(
@@ -891,6 +1000,12 @@ def run_conversational_analysis(goal: str) -> dict[str, Any]:
             result=result.get("result"),
             next_action=result.get("next_action"),
             extraction=extraction,
+        )
+
+    if extracted_package_name is not None and goal_mentions_mobile_verify(goal):
+        return as_conversation(
+            run_autonomous_analysis(goal=goal, package_name=extracted_package_name),
+            {"package_name": extracted_package_name},
         )
 
     if goal_mentions_mobile(goal) and extracted_path is None:
@@ -933,6 +1048,11 @@ def run_conversational_analysis(goal: str) -> dict[str, Any]:
                 needs_clarification=True,
                 clarification_question="APK 분석은 현재 artifacts/ 아래의 로컬 파일 또는 추출 디렉터리를 기준으로 진행합니다. 분석할 앱 경로를 artifacts/ 아래로 준비해 알려주세요.",
                 suggested_input={"target_path": str(candidate)},
+            )
+        if candidate.suffix.lower() == ".apk":
+            return as_conversation(
+                run_autonomous_analysis(goal=goal, apk_path=resolved_target),
+                {"apk_path": resolved_target},
             )
         return as_conversation(
             run_autonomous_analysis(goal=goal, target_path=resolved_target),

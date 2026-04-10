@@ -26,6 +26,13 @@ class ConversationFlowTests(unittest.TestCase):
         self.assertTrue(result["needs_clarification"])
         self.assertIn("target_path", result["suggested_input"])
 
+    def test_converse_extracts_package_name_for_mobile_verify(self) -> None:
+        result = run_conversational_analysis("com.example.app 패키지 동적 검증해줘")
+
+        self.assertEqual(result["analysis_mode"], "conversation")
+        self.assertEqual(result["workflow"], "mobile-verify")
+        self.assertEqual(result["conversation_extraction"]["package_name"], "com.example.app")
+
 
 if __name__ == "__main__":
     unittest.main()
