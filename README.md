@@ -191,8 +191,8 @@ black-spyder-agent slash /session-resume session_id=session-1234abcd
 black-spyder-agent next-step
 black-spyder up
 black-spyder opencode up
-black-spyder converse --goal "웹 페이지 진단해줘 https://example.com"
-black-spyder converse --goal "apk 분석해줘"
+black-spyder converse --goal "Diagnose the web page  https://example.com"
+black-spyder converse --goal "Please analyze this apk"
 ```
 
 The agent runtime keeps the same safety model as the underlying MCP tools: policy-gated observation only, one step at a time, and evidence before conclusions.
