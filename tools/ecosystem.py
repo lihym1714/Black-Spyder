@@ -24,6 +24,8 @@ SUPPORTED_COMMAND_WORKFLOWS = {
     "recon",
     "compare-auth",
     "mobile-review",
+    "mobile-decompile",
+    "mobile-verify",
     "write-finding",
     "next-step",
     "sessions",

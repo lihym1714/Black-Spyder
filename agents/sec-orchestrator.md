@@ -12,6 +12,8 @@ allowed_tools:
   - schema_extract
   - artifact_writer
   - yara_scan
+  - apk_decompile
+  - mobile_dynamic_verify
 runtime_entrypoints:
   - black-spyder-agent route
   - black-spyder-agent observe
