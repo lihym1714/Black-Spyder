@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import socket
 from pathlib import Path
 from typing import Any
 
+import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -17,6 +19,10 @@ BRIDGE_MANIFEST_PATH = PROJECT_ROOT / "state" / "opencode-bridge-manifest.json"
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = 8787
 BRIDGE_ENVELOPE_VERSION = 1
+
+
+class BridgeReuseError(RuntimeError):
+    pass
 
 
 class HostRegistrationRequest(BaseModel):
@@ -104,6 +110,63 @@ def build_bridge_manifest() -> dict[str, Any]:
     }
     write_json(BRIDGE_MANIFEST_PATH, manifest)
     return manifest
+
+
+def bridge_base_url() -> str:
+    return f"http://{BRIDGE_HOST}:{BRIDGE_PORT}"
+
+
+def is_bridge_port_open(timeout: float = 0.2) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(timeout)
+        return probe.connect_ex((BRIDGE_HOST, BRIDGE_PORT)) == 0
+
+
+def probe_existing_bridge(timeout: float = 1.0) -> bool:
+    base_url = bridge_base_url()
+    try:
+        client_timeout = httpx.Timeout(timeout, connect=timeout, read=timeout, write=timeout, pool=timeout)
+        with httpx.Client(timeout=client_timeout, trust_env=False, follow_redirects=False) as client:
+            health_response = client.get(f"{base_url}/health")
+            registry_response = client.get(f"{base_url}/registry")
+    except httpx.HTTPError:
+        return False
+    if health_response.status_code != 200 or registry_response.status_code != 200:
+        return False
+    try:
+        health_payload = health_response.json()
+        registry_payload = registry_response.json()
+    except ValueError:
+        return False
+    health_status = health_payload.get("status")
+    if health_payload.get("envelope_version") == BRIDGE_ENVELOPE_VERSION:
+        if health_status != "ok":
+            return False
+    elif health_status != "ok" or "bridge_manifest_present" not in health_payload:
+        return False
+
+    registry_data = registry_payload.get("payload") if registry_payload.get("envelope_version") == BRIDGE_ENVELOPE_VERSION else registry_payload
+    if not isinstance(registry_data, dict):
+        return False
+    return registry_data.get("bridge_name") == "black-spyder-opencode-bridge"
+
+
+def ensure_bridge_available() -> dict[str, Any]:
+    if probe_existing_bridge():
+        return {
+            "status": "reusing_existing_bridge",
+            "bridge_url": bridge_base_url(),
+            "reused_existing_bridge": True,
+        }
+    if is_bridge_port_open():
+        raise BridgeReuseError(
+            f"Port {BRIDGE_PORT} is already in use by a non-Black-Spyder service; cannot start the OpenCode bridge."
+        )
+    return {
+        "status": "starting",
+        "bridge_url": bridge_base_url(),
+        "reused_existing_bridge": False,
+    }
 
 
 def envelope_response(*, status: str, payload: dict[str, Any], error: dict[str, Any] | None = None) -> dict[str, Any]:
