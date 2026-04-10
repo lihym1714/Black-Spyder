@@ -31,7 +31,7 @@ class SimpleEntryTests(unittest.TestCase):
         return_value={
             "status": "connected",
             "host": {"host_name": "opencode-host"},
-            "registry": {"ecosystem": {"commands": [{"name": "/doctor"}]}},
+            "registry": {"ecosystem": {"commands": [{"name": "/doctor"}]}, "default_preset": {"name": "opencode-conversation-first"}},
         },
     )
     def test_opencode_up_dry_run_reports_simple_summary(self, mock_connect) -> None:
@@ -42,13 +42,18 @@ class SimpleEntryTests(unittest.TestCase):
         self.assertEqual(payload["status"], "connected")
         self.assertEqual(payload["command_count"], 1)
         self.assertIn("/analyze", payload["next_step"])
+        self.assertTrue(payload["open_code_primary"])
 
     @patch(
         "tools.simple_entry.connect_host",
         return_value={
             "status": "connected",
             "host": {"host_name": "opencode-host"},
-            "registry": {"ecosystem": {"commands": [{"name": "/doctor"}, {"name": "/analyze"}]}, "routes": {"analyze": "/analyze"}},
+            "registry": {
+                "ecosystem": {"commands": [{"name": "/doctor"}, {"name": "/analyze"}]},
+                "routes": {"analyze": "/analyze"},
+                "default_preset": {"name": "opencode-conversation-first"},
+            },
         },
     )
     def test_opencode_up_mentions_execute_next_step(self, mock_connect) -> None:

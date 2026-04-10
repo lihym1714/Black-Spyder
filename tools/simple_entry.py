@@ -73,10 +73,12 @@ def opencode_up(
     )
     summary = {
         "status": connected["status"],
+        "open_code_primary": True,
         "bridge_url": f"http://{BRIDGE_HOST}:{BRIDGE_PORT}",
         "host": connected["host"],
         "command_count": len(connected["registry"]["ecosystem"]["commands"]),
         "next_step": "POST /converse first for conversation-style prompts; use /analyze for already structured analysis and /execute only for low-level commands.",
+        "default_preset": connected["registry"]["default_preset"],
     }
     if dry_run:
         emit(summary)

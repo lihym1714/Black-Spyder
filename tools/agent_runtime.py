@@ -773,6 +773,51 @@ def run_write_finding(
     return result
 
 
+def summarize_analysis(goal: str, workflow: str | None, executed: bool, needs_clarification: bool) -> str:
+    if needs_clarification:
+        return "More input is required before Black-Spyder can continue safely."
+    if not executed:
+        return f"Black-Spyder selected the '{workflow or 'unknown'}' workflow but did not execute it yet."
+    return f"Black-Spyder executed the '{workflow or 'unknown'}' workflow for the requested goal."
+
+
+def build_analysis_envelope(
+    *,
+    analysis_mode: str,
+    goal: str,
+    route: dict[str, Any] | None,
+    executed: bool,
+    result: dict[str, Any] | None,
+    next_action: dict[str, Any] | None,
+    needs_clarification: bool = False,
+    clarification_question: str | None = None,
+    suggested_input: dict[str, str] | None = None,
+    extraction: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    workflow = route["workflow"] if route is not None else None
+    envelope: dict[str, Any] = {
+        "status": "needs_clarification" if needs_clarification else ("completed" if executed else "planned"),
+        "analysis_mode": analysis_mode,
+        "goal": goal,
+        "workflow": workflow,
+        "executed": executed,
+        "summary": summarize_analysis(goal, workflow, executed, needs_clarification),
+        "route": route,
+        "result": result,
+        "next_action": next_action,
+        "recommended_surface": "/converse" if analysis_mode == "conversation" else "/analyze",
+    }
+    if needs_clarification:
+        envelope["needs_clarification"] = True
+    if clarification_question is not None:
+        envelope["clarification_question"] = clarification_question
+    if suggested_input is not None:
+        envelope["suggested_input"] = suggested_input
+    if extraction is not None:
+        envelope["conversation_extraction"] = extraction
+    return envelope
+
+
 def run_autonomous_analysis(
     *,
     goal: str,
@@ -805,14 +850,14 @@ def run_autonomous_analysis(
     elif workflow == "mobile-review" and target_path is not None:
         result = run_mobile_review(target_path=target_path, rules_path=rules_path)
 
-    return {
-        "analysis_mode": "structured",
-        "goal": goal,
-        "route": route,
-        "executed": result is not None,
-        "result": result,
-        "next_action": route["next_action"] if result is None else None,
-    }
+    return build_analysis_envelope(
+        analysis_mode="structured",
+        goal=goal,
+        route=route,
+        executed=result is not None,
+        result=result,
+        next_action=route["next_action"] if result is None else None,
+    )
 
 
 def extract_url_from_goal(goal: str) -> str | None:
@@ -838,50 +883,57 @@ def run_conversational_analysis(goal: str) -> dict[str, Any]:
     extracted_path = extract_path_from_goal(goal)
 
     def as_conversation(result: dict[str, Any], extraction: dict[str, str]) -> dict[str, Any]:
-        return {
-            **result,
-            "analysis_mode": "conversation",
-            "conversation_extraction": extraction,
-        }
+        return build_analysis_envelope(
+            analysis_mode="conversation",
+            goal=goal,
+            route=result.get("route"),
+            executed=bool(result.get("executed")),
+            result=result.get("result"),
+            next_action=result.get("next_action"),
+            extraction=extraction,
+        )
 
     if goal_mentions_mobile(goal) and extracted_path is None:
-        return {
-            "analysis_mode": "conversation",
-            "goal": goal,
-            "executed": False,
-            "needs_clarification": True,
-            "clarification_question": "어떤 앱을 분석할까요? APK 파일 경로나 추출된 앱 디렉터리 경로를 알려주세요.",
-            "suggested_input": {
-                "target_path": "~/Downloads/example.apk 또는 추출된 앱 디렉터리 경로",
-            },
-        }
+        return build_analysis_envelope(
+            analysis_mode="conversation",
+            goal=goal,
+            route=None,
+            executed=False,
+            result=None,
+            next_action=None,
+            needs_clarification=True,
+            clarification_question="어떤 앱을 분석할까요? APK 파일 경로나 추출된 앱 디렉터리 경로를 알려주세요.",
+            suggested_input={"target_path": "~/Downloads/example.apk 또는 추출된 앱 디렉터리 경로"},
+        )
 
     if extracted_path is not None and goal_mentions_mobile(goal):
         candidate = Path(extracted_path).expanduser()
         if not candidate.exists():
-            return {
-                "analysis_mode": "conversation",
-                "goal": goal,
-                "executed": False,
-                "needs_clarification": True,
-                "clarification_question": "분석할 APK나 추출된 앱 경로를 찾지 못했습니다. 실제 존재하는 경로를 알려주세요.",
-                "suggested_input": {
-                    "target_path": extracted_path,
-                },
-            }
+            return build_analysis_envelope(
+                analysis_mode="conversation",
+                goal=goal,
+                route=None,
+                executed=False,
+                result=None,
+                next_action=None,
+                needs_clarification=True,
+                clarification_question="분석할 APK나 추출된 앱 경로를 찾지 못했습니다. 실제 존재하는 경로를 알려주세요.",
+                suggested_input={"target_path": extracted_path},
+            )
         try:
             resolved_target = str(resolve_artifact_target_path(str(candidate)))
         except (ValueError, FileNotFoundError):
-            return {
-                "analysis_mode": "conversation",
-                "goal": goal,
-                "executed": False,
-                "needs_clarification": True,
-                "clarification_question": "APK 분석은 현재 artifacts/ 아래의 로컬 파일 또는 추출 디렉터리를 기준으로 진행합니다. 분석할 앱 경로를 artifacts/ 아래로 준비해 알려주세요.",
-                "suggested_input": {
-                    "target_path": str(candidate),
-                },
-            }
+            return build_analysis_envelope(
+                analysis_mode="conversation",
+                goal=goal,
+                route=None,
+                executed=False,
+                result=None,
+                next_action=None,
+                needs_clarification=True,
+                clarification_question="APK 분석은 현재 artifacts/ 아래의 로컬 파일 또는 추출 디렉터리를 기준으로 진행합니다. 분석할 앱 경로를 artifacts/ 아래로 준비해 알려주세요.",
+                suggested_input={"target_path": str(candidate)},
+            )
         return as_conversation(
             run_autonomous_analysis(goal=goal, target_path=resolved_target),
             {"target_path": resolved_target},
@@ -893,17 +945,17 @@ def run_conversational_analysis(goal: str) -> dict[str, Any]:
             {"url": extracted_url},
         )
 
-    return {
-        "analysis_mode": "conversation",
-        "executed": False,
-        "needs_clarification": True,
-        "goal": goal,
-        "clarification_question": "분석할 대상이 필요합니다. URL이나 로컬 파일/디렉터리 경로를 알려주세요.",
-        "suggested_input": {
-            "url": "https://example.com",
-            "target_path": "~/Downloads/example.apk",
-        },
-    }
+    return build_analysis_envelope(
+        analysis_mode="conversation",
+        goal=goal,
+        route=None,
+        executed=False,
+        result=None,
+        next_action=None,
+        needs_clarification=True,
+        clarification_question="분석할 대상이 필요합니다. URL이나 로컬 파일/디렉터리 경로를 알려주세요.",
+        suggested_input={"url": "https://example.com", "target_path": "~/Downloads/example.apk"},
+    )
 
 
 def next_step() -> dict[str, Any]:

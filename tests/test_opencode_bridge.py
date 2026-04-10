@@ -40,8 +40,10 @@ class OpenCodeBridgeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["bridge_name"], "black-spyder-opencode-bridge")
-        self.assertIn("ecosystem", payload)
+        self.assertEqual(payload["envelope_version"], opencode_bridge.BRIDGE_ENVELOPE_VERSION)
+        self.assertEqual(payload["payload"]["bridge_name"], "black-spyder-opencode-bridge")
+        self.assertIn("ecosystem", payload["payload"])
+        self.assertIn("default_preset", payload["payload"])
         self.assertTrue(self.bridge_manifest_path.exists())
 
     def test_register_host_persists_host_record(self) -> None:
@@ -52,7 +54,8 @@ class OpenCodeBridgeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["status"], "registered")
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["payload"]["status"], "registered")
         state = opencode_bridge.load_bridge_state()
         self.assertEqual(len(state["hosts"]), 1)
 
@@ -64,9 +67,11 @@ class OpenCodeBridgeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["status"], "connected")
-        self.assertEqual(payload["execute_route"], "/execute")
-        self.assertIn("registry", payload)
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["payload"]["status"], "connected")
+        self.assertEqual(payload["payload"]["execute_route"], "/execute")
+        self.assertEqual(payload["payload"]["primary_route"], "/converse")
+        self.assertIn("registry", payload["payload"])
         self.assertEqual(len(opencode_bridge.load_bridge_state()["hosts"]), 1)
 
     def test_connect_reuses_existing_host_registration(self) -> None:
@@ -90,6 +95,7 @@ class OpenCodeBridgeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["payload"]["execution"]["command_name"], "/doctor")
         mock_run_named_workflow.assert_called_once_with("/doctor", {})
         self.assertEqual(len(opencode_bridge.load_bridge_state()["executions"]), 1)
 
@@ -111,6 +117,7 @@ class OpenCodeBridgeTests(unittest.TestCase):
                 "method": "GET",
             },
         )
+        self.assertEqual(payload["payload"]["execution"]["command_name"], "/analyze")
 
     @patch("tools.opencode_bridge.run_named_workflow", return_value={"result": {"needs_clarification": True}})
     def test_converse_routes_conversational_request(self, mock_run_named_workflow) -> None:
@@ -123,6 +130,18 @@ class OpenCodeBridgeTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
         mock_run_named_workflow.assert_called_once_with("/converse", {"goal": "apk 분석해줘"})
+        self.assertEqual(payload["payload"]["execution"]["command_name"], "/converse")
+
+    @patch("tools.opencode_bridge.run_named_workflow", side_effect=ValueError("unknown command"))
+    def test_execute_returns_structured_error_envelope(self, mock_run_named_workflow) -> None:
+        response = self.client.post(
+            "/execute",
+            json={"command_name": "/missing", "params": {}},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"]["status"], "error")
+        self.assertEqual(response.json()["detail"]["payload"]["command_name"], "/missing")
 
 
 if __name__ == "__main__":

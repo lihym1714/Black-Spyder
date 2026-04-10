@@ -16,6 +16,7 @@ BRIDGE_STATE_PATH = PROJECT_ROOT / "state" / "opencode_bridge_state.json"
 BRIDGE_MANIFEST_PATH = PROJECT_ROOT / "state" / "opencode-bridge-manifest.json"
 BRIDGE_HOST = "127.0.0.1"
 BRIDGE_PORT = 8787
+BRIDGE_ENVELOPE_VERSION = 1
 
 
 class HostRegistrationRequest(BaseModel):
@@ -82,6 +83,13 @@ def build_bridge_manifest() -> dict[str, Any]:
         "bridge_version": 1,
         "generated_at": utc_now_iso(),
         "entrypoint": "black-spyder-opencode-bridge",
+        "recommended_entrypoint": "black-spyder opencode up",
+        "default_preset": {
+            "name": "opencode-conversation-first",
+            "first_route": "/converse",
+            "fallback_route": "/analyze",
+            "low_level_route": "/execute",
+        },
         "routes": {
             "health": "/health",
             "registry": "/registry",
@@ -96,6 +104,17 @@ def build_bridge_manifest() -> dict[str, Any]:
     }
     write_json(BRIDGE_MANIFEST_PATH, manifest)
     return manifest
+
+
+def envelope_response(*, status: str, payload: dict[str, Any], error: dict[str, Any] | None = None) -> dict[str, Any]:
+    response: dict[str, Any] = {
+        "envelope_version": BRIDGE_ENVELOPE_VERSION,
+        "status": status,
+        "payload": payload,
+    }
+    if error is not None:
+        response["error"] = error
+    return response
 
 
 def record_host_registration(payload: HostRegistrationRequest) -> dict[str, Any]:
@@ -127,6 +146,8 @@ def connect_host(payload: HostRegistrationRequest) -> dict[str, Any]:
         "status": "connected",
         "host": host,
         "registry": manifest,
+        "primary_route": "/converse",
+        "structured_route": "/analyze",
         "execute_route": "/execute",
         "doctor": doctor,
     }
@@ -152,31 +173,36 @@ app = FastAPI(title="Black-Spyder OpenCode Bridge")
 @app.get("/health")
 def health() -> dict[str, Any]:
     doctor = ecosystem_doctor()
-    return {
-        "status": doctor["status"],
-        "bridge_manifest_present": BRIDGE_MANIFEST_PATH.exists(),
-        "registered_host_count": len(load_bridge_state().get("hosts", [])),
-        "doctor": doctor,
-    }
+    return envelope_response(
+        status=doctor["status"],
+        payload={
+            "bridge_manifest_present": BRIDGE_MANIFEST_PATH.exists(),
+            "registered_host_count": len(load_bridge_state().get("hosts", [])),
+            "doctor": doctor,
+        },
+    )
 
 
 @app.get("/registry")
 def registry() -> dict[str, Any]:
-    return build_bridge_manifest()
+    return envelope_response(status="ok", payload=build_bridge_manifest())
 
 
 @app.post("/register-host")
 def register_host(payload: HostRegistrationRequest) -> dict[str, Any]:
-    return {
-        "status": "registered",
-        "host": record_host_registration(payload),
-        "registry_path": normalize_bridge_path(BRIDGE_MANIFEST_PATH),
-    }
+    return envelope_response(
+        status="ok",
+        payload={
+            "status": "registered",
+            "host": record_host_registration(payload),
+            "registry_path": normalize_bridge_path(BRIDGE_MANIFEST_PATH),
+        },
+    )
 
 
 @app.post("/connect")
 def connect(payload: HostRegistrationRequest) -> dict[str, Any]:
-    return connect_host(payload)
+    return envelope_response(status="ok", payload=connect_host(payload))
 
 
 @app.post("/execute")
@@ -184,12 +210,16 @@ def execute(payload: ExecuteRequest) -> dict[str, Any]:
     try:
         result = run_named_workflow(payload.command_name, payload.params)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=envelope_response(
+                status="error",
+                payload={"command_name": payload.command_name},
+                error={"message": str(exc)},
+            ),
+        ) from exc
     execution = record_execution(payload.command_name, payload.params, result)
-    return {
-        "status": "ok",
-        "execution": execution,
-    }
+    return envelope_response(status="ok", payload={"execution": execution})
 
 
 @app.post("/analyze")
@@ -201,12 +231,16 @@ def analyze(payload: AnalyzeRequest) -> dict[str, Any]:
             params,
         )
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=envelope_response(
+                status="error",
+                payload={"command_name": "/analyze"},
+                error={"message": str(exc)},
+            ),
+        ) from exc
     execution = record_execution("/analyze", params, result)
-    return {
-        "status": "ok",
-        "execution": execution,
-    }
+    return envelope_response(status="ok", payload={"execution": execution})
 
 
 @app.post("/converse")
@@ -215,12 +249,16 @@ def converse(payload: ConverseRequest) -> dict[str, Any]:
         params = {"goal": payload.goal}
         result = run_named_workflow("/converse", params)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=envelope_response(
+                status="error",
+                payload={"command_name": "/converse"},
+                error={"message": str(exc)},
+            ),
+        ) from exc
     execution = record_execution("/converse", params, result)
-    return {
-        "status": "ok",
-        "execution": execution,
-    }
+    return envelope_response(status="ok", payload={"execution": execution})
 
 
 def main() -> None:
