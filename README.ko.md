@@ -115,7 +115,7 @@ python -m pip install -e .
 
 ### Installation for LLM
 
-아래 프롬프트를 그대로 OpenCode에 붙여 넣으면 설치부터 브리지 실행, 초기 host connection까지 한 흐름으로 처리할 수 있습니다.
+이 프로젝트는 OpenCode에서 사용하는 것을 기본 흐름으로 설계했습니다. 아래 프롬프트를 그대로 OpenCode에 붙여 넣으면 설치부터 브리지 실행, 초기 host connection까지 한 흐름으로 처리할 수 있습니다.
 
 ```text
 Set up and connect Black-Spyder for this session.
@@ -131,7 +131,7 @@ Do these steps in order:
      "host_version": "1.0",
       "capabilities": ["registry", "execute"]
    }
-6. Treat the returned registry as the available command surface for this session.
+6. Treat the returned registry and default preset as the available command surface for this session.
 7. 사용자가 그냥 대화하듯 요청하면 먼저 POST `/converse`를 사용하십시오.
 8. URL이나 파일 경로가 이미 구조화되어 있을 때만 POST `/analyze`를 사용하십시오.
 9. 특정 lower-level slash command가 꼭 필요할 때만 POST `/execute`를 사용하십시오.
@@ -164,6 +164,8 @@ black-spyder opencode up
 가장 짧고 직관적인 OpenCode용 명령으로 브리지를 실행하고 기본 연결 상태를 준비합니다.
 
 가장 단순한 prompt-first 사용 방식은 OpenCode가 먼저 `/converse`를 호출하고, URL이나 경로가 이미 정리된 경우에만 `/analyze`를 쓰는 것입니다.
+
+CLI보다 OpenCode host를 우선 사용하는 흐름을 권장합니다. bridge는 이제 기본 preset을 통해 `/converse` → `/analyze` → `/execute` 순서의 권장 사용 경로를 함께 제공합니다.
 
 ```bash
 black-spyder-agent registry
@@ -207,6 +209,8 @@ black-spyder converse --goal "apk 분석해줘"
 - `POST /analyze` : 자연어 goal을 받아 가장 안전한 분석 경로를 자동 선택하고 실행
 - `POST /register-host` : 로컬 host registration 기록
 - `POST /execute` : 기존 runtime을 통해 slash-style 명령 1개 실행
+
+이제 bridge 응답은 `envelope_version`, `status`, `payload`를 갖는 공통 envelope를 사용하므로 OpenCode 쪽에서 더 안정적으로 해석할 수 있습니다.
 
 ### Conversation extraction layer와 structured analysis 구분
 

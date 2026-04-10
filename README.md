@@ -118,7 +118,7 @@ python -m pip install -e .
 
 ### Installation for LLM
 
-Paste this prompt into OpenCode as-is to let it handle installation, bridge startup, and initial host connection in one flow:
+This project is designed to be used from OpenCode first. Paste this prompt into OpenCode as-is to let it handle installation, bridge startup, and initial host connection in one flow:
 
 ```text
 Set up and connect Black-Spyder for this session.
@@ -134,7 +134,7 @@ Do these steps in order:
      "host_version": "1.0",
       "capabilities": ["registry", "execute"]
    }
-6. Treat the returned registry as the available command surface for this session.
+6. Treat the returned registry and default preset as the available command surface for this session.
 7. When the user asks in plain conversation, use POST `/converse` first.
 8. Use POST `/analyze` when the target is already structured as a URL or file path.
 9. Use POST `/execute` only when you intentionally want a specific lower-level slash command.
@@ -167,6 +167,8 @@ black-spyder opencode up
 This starts the local OpenCode bridge on `127.0.0.1:8787` and prepares the default OpenCode host connection state.
 
 For the simplest prompt-first usage, let OpenCode call `/converse` first and only use `/analyze` when it already extracted a concrete URL or file path.
+
+If you are choosing between CLI-first and host-first usage, prefer OpenCode-first usage. The bridge now exposes a default preset that tells the host to start from `/converse`, then `/analyze`, and only use `/execute` for explicit low-level control.
 
 ```bash
 black-spyder-agent registry
@@ -210,6 +212,8 @@ Available endpoints:
 - `POST /analyze` accepts a natural-language goal and lets Black-Spyder choose and run the safest matching workflow automatically
 - `POST /register-host` records a local host registration
 - `POST /execute` runs one slash-style command through the existing runtime
+
+Every bridge response now uses a consistent envelope with `envelope_version`, `status`, and `payload` so OpenCode can consume results more predictably.
 
 ### Conversation extraction layer vs structured analysis
 
