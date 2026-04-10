@@ -16,6 +16,9 @@ passthrough_args:
   - right_artifact_path
   - target_path
   - rules_path
+  - apk_path
+  - package_name
+  - device_id
 ---
 
 # /analyze
